@@ -2,13 +2,28 @@
   "repository": {
     "url": "git@github.com:jylzs369/vue-analysis.git"
   },
+  "scripts": {
+    "dev": "webpack-dev-server --color --progress --inline",
+    "start": "npm run dev"
+  },
   "author": "ushio",
   "devDependencies": {
+    "babel-core": "^6.22.1",
+    "babel-eslint": "^7.1.1",
+    "babel-loader": "^7.1.1",
+    "babel-plugin-istanbul": "^4.1.1",
+    "babel-plugin-transform-runtime": "^6.22.0",
+    "babel-polyfill": "^6.26.0",
+    "babel-preset-env": "^1.3.2",
+    "babel-preset-stage-2": "^6.22.0",
+    "babel-register": "^6.22.0",
+    "copy-webpack-plugin": "^4.5.1",
     "css-loader": "^0.28.11",
-    "style-loader": "^0.21.0",
+    "html-webpack-plugin": "^3.2.0",
     "vue": "^2.5.16",
     "vue-loader": "^15.2.0",
     "vue-router": "^3.0.1",
+    "vue-style-loader": "^3.0.1",
     "vue-template-compiler": "^2.5.16",
     "webpack": "^4.8.3",
     "webpack-cli": "^2.1.4",
