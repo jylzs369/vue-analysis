@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+  <title>Vue uid</title>
+</head>
+<body>
+  <div id="component1">{{ msg }}</div>
+  <div id="component2">{{ msg }}</div>
+  <script src="vue.js"></script>
+  <script>
+    var component1 = new Vue({
+      el: '#component1',
+      data () {
+        return {
+          msg: 'hello'
+        }
+      }
+    })
+    var component2 = new Vue({
+      el: '#component2',
+      data () {
+        return {
+          msg: 'world'
+        }
+      }
+    })
+    console.log(component1)
+    console.log(component2)
+  </script>
+</body>
+</html>
