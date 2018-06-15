@@ -72,13 +72,14 @@ export function initMixin (Vue: Class<Component>) {
     // 将实例对象赋值给vm变量
     // 这里会再次进行Component类型检查确保vm接收到的是Vue类的实例
     const vm: Component = this
-    // 给实例对象vm定义_uid属性，uid是在函数外定义的变量，从0开始增量赋值
+    // 给实例对象vm定义_uid属性，作为vue实例的唯一标识ID
+    // uid是在函数外定义的变量，从0开始增量赋值
     // a uid
     vm._uid = uid++
     // 定义startTag、endTag变量
     let startTag, endTag
     // 注释的意思是代码覆盖率检测工具istanbul会忽略if分支
-    // 因为下面代码是专为性能分析使用的
+    // 因为下面代码是专为性能分析使用的，以后都不做分析
     /* istanbul ignore if */
     // 非生产环境且进行性能分析的时候执行以下代码
     if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
@@ -94,14 +95,16 @@ export function initMixin (Vue: Class<Component>) {
     vm._isVue = true
     // 合并options对象
     // merge options
-    // 条件成立执行初始化内部组件函数
+    // 如果是内部组件则执行初始化内部组件函数
+    // 这里特意区分出内部定义的组件，是为了进行特别处理提升优化
     if (options && options._isComponent) {
       // optimize internal component instantiation
       // since dynamic options merging is pretty slow, and none of the
       // internal component options needs special treatment.
       initInternalComponent(vm, options)
     } else {
-      // 某则执行合并options函数，并赋值给vm的公共属性
+      // 否则执行合并options函数，并赋值给vm的公共属性
+      // 在这里的合并函数主要是解决与继承自父类的配置对象的合并
       vm.$options = mergeOptions(
         resolveConstructorOptions(vm.constructor),
         options || {},
@@ -115,10 +118,10 @@ export function initMixin (Vue: Class<Component>) {
     } else {
       vm._renderProxy = vm
     }
-    // 暴露实例对象
     // expose real self
+    // 暴露实例对象
     vm._self = vm
-    // 初始化实例的生命周期
+    // 初始化实例的生命周期相关属性
     initLifecycle(vm)
     // 初始化事件相关属性和监听功能
     initEvents(vm)
@@ -126,14 +129,16 @@ export function initMixin (Vue: Class<Component>) {
     initRender(vm)
     // 调用生命周期钩子函数beforeCreate
     callHook(vm, 'beforeCreate')
-    // 初始化属性注入解决
+    // 初始化父组件注入属性
     initInjections(vm) // resolve injections before data/props
-    // 出释怀状态相关属性和功能
+    // 初始化状态相关属性和功能
     initState(vm)
+    // 初始化子组件属性提供器
     initProvide(vm) // resolve provide after data/props
     // 调用生命周期钩子函数created
     callHook(vm, 'created')
 
+    // 性能检测代码
     /* istanbul ignore if */
     if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
       vm._name = formatComponentName(vm, false)
@@ -141,6 +146,7 @@ export function initMixin (Vue: Class<Component>) {
       measure(`vue ${vm._name} init`, startTag, endTag)
     }
 
+    // 执行DOM元素挂载函数
     if (vm.$options.el) {
       vm.$mount(vm.$options.el)
     }
@@ -148,6 +154,15 @@ export function initMixin (Vue: Class<Component>) {
 }
 ```
 还记得在文件组织里分析的，Component类的的具体定义可参照[这个文件](https://github.com/vuejs/vue/blob/dev/flow/component.js)。
+
+初始化函数内容不多，主要做了这么几件事：
+- 整理options配置对象
+- 开始进入Vue实例的生命周期进程，并在生命周期相应阶段初始化实例属性和方法
+- 将初始化好的对象挂载到Dom元素上，继续生命周期的运行
+
+这部分代码已经完整地展示出了将Vue实例对象挂载到DOM元素上并执行渲染的大半程生命周期的进程，在此之后就是视图的交互过程，直到实例对象被销毁。后半段代码清晰地呈现了生命周期中各个功能的初始化顺序，也就是那张著名的生命周期图示的对应代码。
+
+各个生命周期的初始化函数内容比较丰富，决定在另一个文档中做一个单独讨论[初始化函数详情](Vue源码探究-初始化函数详情.md)
 
 
 ### 状态
