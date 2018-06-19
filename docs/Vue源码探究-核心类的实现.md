@@ -167,388 +167,91 @@ export function initMixin (Vue: Class<Component>) {
 
 ### 状态
 ```js
-
-/* @flow */
-
-import config from '../config'
-import Watcher from '../observer/watcher'
-import { pushTarget, popTarget } from '../observer/dep'
-import { isUpdatingChildComponent } from './lifecycle'
-
-import {
-  set,
-  del,
-  observe,
-  defineReactive,
-  toggleObserving
-} from '../observer/index'
-
-import {
-  warn,
-  bind,
-  noop,
-  hasOwn,
-  hyphenate,
-  isReserved,
-  handleError,
-  nativeWatch,
-  validateProp,
-  isPlainObject,
-  isServerRendering,
-  isReservedAttribute
-} from '../util/index'
-
-const sharedPropertyDefinition = {
-  enumerable: true,
-  configurable: true,
-  get: noop,
-  set: noop
-}
-
-export function proxy (target: Object, sourceKey: string, key: string) {
-  sharedPropertyDefinition.get = function proxyGetter () {
-    return this[sourceKey][key]
-  }
-  sharedPropertyDefinition.set = function proxySetter (val) {
-    this[sourceKey][key] = val
-  }
-  Object.defineProperty(target, key, sharedPropertyDefinition)
-}
-
-export function initState (vm: Component) {
-  vm._watchers = []
-  const opts = vm.$options
-  if (opts.props) initProps(vm, opts.props)
-  if (opts.methods) initMethods(vm, opts.methods)
-  if (opts.data) {
-    initData(vm)
-  } else {
-    observe(vm._data = {}, true /* asRootData */)
-  }
-  if (opts.computed) initComputed(vm, opts.computed)
-  if (opts.watch && opts.watch !== nativeWatch) {
-    initWatch(vm, opts.watch)
-  }
-}
-
-function initProps (vm: Component, propsOptions: Object) {
-  const propsData = vm.$options.propsData || {}
-  const props = vm._props = {}
-  // cache prop keys so that future props updates can iterate using Array
-  // instead of dynamic object key enumeration.
-  const keys = vm.$options._propKeys = []
-  const isRoot = !vm.$parent
-  // root instance props should be converted
-  if (!isRoot) {
-    toggleObserving(false)
-  }
-  for (const key in propsOptions) {
-    keys.push(key)
-    const value = validateProp(key, propsOptions, propsData, vm)
-    /* istanbul ignore else */
-    if (process.env.NODE_ENV !== 'production') {
-      const hyphenatedKey = hyphenate(key)
-      if (isReservedAttribute(hyphenatedKey) ||
-          config.isReservedAttr(hyphenatedKey)) {
-        warn(
-          `"${hyphenatedKey}" is a reserved attribute and cannot be used as component prop.`,
-          vm
-        )
-      }
-      defineReactive(props, key, value, () => {
-        if (vm.$parent && !isUpdatingChildComponent) {
-          warn(
-            `Avoid mutating a prop directly since the value will be ` +
-            `overwritten whenever the parent component re-renders. ` +
-            `Instead, use a data or computed property based on the prop's ` +
-            `value. Prop being mutated: "${key}"`,
-            vm
-          )
-        }
-      })
-    } else {
-      defineReactive(props, key, value)
-    }
-    // static props are already proxied on the component's prototype
-    // during Vue.extend(). We only need to proxy props defined at
-    // instantiation here.
-    if (!(key in vm)) {
-      proxy(vm, `_props`, key)
-    }
-  }
-  toggleObserving(true)
-}
-
-function initData (vm: Component) {
-  let data = vm.$options.data
-  data = vm._data = typeof data === 'function'
-    ? getData(data, vm)
-    : data || {}
-  if (!isPlainObject(data)) {
-    data = {}
-    process.env.NODE_ENV !== 'production' && warn(
-      'data functions should return an object:\n' +
-      'https://vuejs.org/v2/guide/components.html#data-Must-Be-a-Function',
-      vm
-    )
-  }
-  // proxy data on instance
-  const keys = Object.keys(data)
-  const props = vm.$options.props
-  const methods = vm.$options.methods
-  let i = keys.length
-  while (i--) {
-    const key = keys[i]
-    if (process.env.NODE_ENV !== 'production') {
-      if (methods && hasOwn(methods, key)) {
-        warn(
-          `Method "${key}" has already been defined as a data property.`,
-          vm
-        )
-      }
-    }
-    if (props && hasOwn(props, key)) {
-      process.env.NODE_ENV !== 'production' && warn(
-        `The data property "${key}" is already declared as a prop. ` +
-        `Use prop default value instead.`,
-        vm
-      )
-    } else if (!isReserved(key)) {
-      proxy(vm, `_data`, key)
-    }
-  }
-  // observe data
-  observe(data, true /* asRootData */)
-}
-
-export function getData (data: Function, vm: Component): any {
-  // #7573 disable dep collection when invoking data getters
-  pushTarget()
-  try {
-    return data.call(vm, vm)
-  } catch (e) {
-    handleError(e, vm, `data()`)
-    return {}
-  } finally {
-    popTarget()
-  }
-}
-
-const computedWatcherOptions = { computed: true }
-
-function initComputed (vm: Component, computed: Object) {
-  // $flow-disable-line
-  const watchers = vm._computedWatchers = Object.create(null)
-  // computed properties are just getters during SSR
-  const isSSR = isServerRendering()
-
-  for (const key in computed) {
-    const userDef = computed[key]
-    const getter = typeof userDef === 'function' ? userDef : userDef.get
-    if (process.env.NODE_ENV !== 'production' && getter == null) {
+// 导出stateMixin函数，接收形参Vue，
+// 使用Flow进行静态类型检查指定为Component类
+export function stateMixin (Vue: Class<Component>) {
+  // 使用 Object.defineProperty 方法直接声明定义对象时，flow会发生问题
+  // 所以必须在此程序化定义对象
+  // flow somehow has problems with directly declared definition object
+  // when using Object.defineProperty, so we have to procedurally build up
+  // the object here.
+  // 定义dataDef对象
+  const dataDef = {}
+  // 定义dataDef的get方法，返回Vue实例私有属性_data
+  dataDef.get = function () { return this._data }
+  // 定义propsDef对象
+  const propsDef = {}
+  // 定义propsDef的get方法，返回Vue实例私有属性_props
+  propsDef.get = function () { return this._props }
+  // 非生产环境下，定义dataDef和propsDef的set方法
+  if (process.env.NODE_ENV !== 'production') {
+    // dataDef的set方法接收Object类型的newData形参
+    dataDef.set = function (newData: Object) {
+      // 提示避免传入对象覆盖属性$data
+      // 推荐使用嵌套的数据属性代替
       warn(
-        `Getter is missing for computed property "${key}".`,
-        vm
-      )
-    }
-
-    if (!isSSR) {
-      // create internal watcher for the computed property.
-      watchers[key] = new Watcher(
-        vm,
-        getter || noop,
-        noop,
-        computedWatcherOptions
-      )
-    }
-
-    // component-defined computed properties are already defined on the
-    // component prototype. We only need to define computed properties defined
-    // at instantiation here.
-    if (!(key in vm)) {
-      defineComputed(vm, key, userDef)
-    } else if (process.env.NODE_ENV !== 'production') {
-      if (key in vm.$data) {
-        warn(`The computed property "${key}" is already defined in data.`, vm)
-      } else if (vm.$options.props && key in vm.$options.props) {
-        warn(`The computed property "${key}" is already defined as a prop.`, vm)
-      }
-    }
-  }
-}
-
-export function defineComputed (
-  target: any,
-  key: string,
-  userDef: Object | Function
-) {
-  const shouldCache = !isServerRendering()
-  if (typeof userDef === 'function') {
-    sharedPropertyDefinition.get = shouldCache
-      ? createComputedGetter(key)
-      : userDef
-    sharedPropertyDefinition.set = noop
-  } else {
-    sharedPropertyDefinition.get = userDef.get
-      ? shouldCache && userDef.cache !== false
-        ? createComputedGetter(key)
-        : userDef.get
-      : noop
-    sharedPropertyDefinition.set = userDef.set
-      ? userDef.set
-      : noop
-  }
-  if (process.env.NODE_ENV !== 'production' &&
-      sharedPropertyDefinition.set === noop) {
-    sharedPropertyDefinition.set = function () {
-      warn(
-        `Computed property "${key}" was assigned to but it has no setter.`,
+        'Avoid replacing instance root $data. ' +
+        'Use nested data properties instead.',
         this
       )
     }
-  }
-  Object.defineProperty(target, key, sharedPropertyDefinition)
-}
-
-function createComputedGetter (key) {
-  return function computedGetter () {
-    const watcher = this._computedWatchers && this._computedWatchers[key]
-    if (watcher) {
-      watcher.depend()
-      return watcher.evaluate()
+    // 设置propsDef的set方法为只读
+    propsDef.set = function () {
+      warn(`$props is readonly.`, this)
     }
   }
-}
+  // 定义Vue原型对象公共属性$data，并赋值为dataDef
+  Object.defineProperty(Vue.prototype, '$data', dataDef)
+  // 定义Vue原型对象公共属性$props，并赋值为propsDef
+  Object.defineProperty(Vue.prototype, '$props', propsDef)
 
-function initMethods (vm: Component, methods: Object) {
-  const props = vm.$options.props
-  for (const key in methods) {
-    if (process.env.NODE_ENV !== 'production') {
-      if (methods[key] == null) {
-        warn(
-          `Method "${key}" has an undefined value in the component definition. ` +
-          `Did you reference the function correctly?`,
-          vm
-        )
-      }
-      if (props && hasOwn(props, key)) {
-        warn(
-          `Method "${key}" has already been defined as a prop.`,
-          vm
-        )
-      }
-      if ((key in vm) && isReserved(key)) {
-        warn(
-          `Method "${key}" conflicts with an existing Vue instance method. ` +
-          `Avoid defining component methods that start with _ or $.`
-        )
-      }
-    }
-    vm[key] = methods[key] == null ? noop : bind(methods[key], vm)
-  }
-}
+  // 定义Vue原型对象的$set方法，并赋值为从观察者导入的set函数
+  Vue.prototype.$set = set
+  // 定义Vue原型对象的$delete方法，并赋值为从观察者导入的del函数
+  Vue.prototype.$delete = del
 
-function initWatch (vm: Component, watch: Object) {
-  for (const key in watch) {
-    const handler = watch[key]
-    if (Array.isArray(handler)) {
-      for (let i = 0; i < handler.length; i++) {
-        createWatcher(vm, key, handler[i])
-      }
-    } else {
-      createWatcher(vm, key, handler)
-    }
-  }
-}
-
-function createWatcher (
-  vm: Component,
-  expOrFn: string | Function,
-  handler: any,
-  options?: Object
-) {
-  if (isPlainObject(handler)) {
-    options = handler
-    handler = handler.handler
-  }
-  if (typeof handler === 'string') {
-    handler = vm[handler]
-  }
-  return vm.$watch(expOrFn, handler, options)
-}
-```
-
-
-### 渲染
-```js
-export function renderMixin (Vue: Class<Component>) {
-  // install runtime convenience helpers
-  installRenderHelpers(Vue.prototype)
-
-  Vue.prototype.$nextTick = function (fn: Function) {
-    return nextTick(fn, this)
-  }
-
-  Vue.prototype._render = function (): VNode {
+  // 定义Vue原型对象的$watch方法
+  // 接收字符串或函数类型的expOrFn，从命名中可看出希望为表达式或函数
+  // 接收任何类型的cb，这里希望为回调函数或者是一个对象
+  // 接收对象类型的options
+  // 要求返回函数类型
+  Vue.prototype.$watch = function (
+    expOrFn: string | Function,
+    cb: any,
+    options?: Object
+  ): Function {
+    // 把实例赋值给vm变量，类型需为Component
     const vm: Component = this
-    const { render, _parentVnode } = vm.$options
-
-    // reset _rendered flag on slots for duplicate slot check
-    if (process.env.NODE_ENV !== 'production') {
-      for (const key in vm.$slots) {
-        // $flow-disable-line
-        vm.$slots[key]._rendered = false
-      }
+    // 如果cb是纯粹的对象类型
+    if (isPlainObject(cb)) {
+      // 返回createWatcher函数
+      return createWatcher(vm, expOrFn, cb, options)
     }
-
-    if (_parentVnode) {
-      vm.$scopedSlots = _parentVnode.data.scopedSlots || emptyObject
+    // 否则定义options
+    options = options || {}
+    // 定义options的user属性值为true
+    options.user = true
+    // 创建watcher实例
+    const watcher = new Watcher(vm, expOrFn, cb, options)
+    // 如果options的immediate为真
+    if (options.immediate) {
+      // 在vm上调用cb回调函数，并传入watcher.value作为参数
+      cb.call(vm, watcher.value)
     }
-
-    // set parent vnode. this allows render functions to have access
-    // to the data on the placeholder node.
-    vm.$vnode = _parentVnode
-    // render self
-    let vnode
-    try {
-      vnode = render.call(vm._renderProxy, vm.$createElement)
-    } catch (e) {
-      handleError(e, vm, `render`)
-      // return error render result,
-      // or previous vnode to prevent render error causing blank component
-      /* istanbul ignore else */
-      if (process.env.NODE_ENV !== 'production') {
-        if (vm.$options.renderError) {
-          try {
-            vnode = vm.$options.renderError.call(vm._renderProxy, vm.$createElement, e)
-          } catch (e) {
-            handleError(e, vm, `renderError`)
-            vnode = vm._vnode
-          }
-        } else {
-          vnode = vm._vnode
-        }
-      } else {
-        vnode = vm._vnode
-      }
+    // 返回unwatchFn函数
+    return function unwatchFn () {
+      // 执行watcher.teardown()方法清除观察
+      watcher.teardown()
     }
-    // return empty vnode in case the render function errored out
-    if (!(vnode instanceof VNode)) {
-      if (process.env.NODE_ENV !== 'production' && Array.isArray(vnode)) {
-        warn(
-          'Multiple root nodes returned from render function. Render function ' +
-          'should return a single root node.',
-          vm
-        )
-      }
-      vnode = createEmptyVNode()
-    }
-    // set parent
-    vnode.parent = _parentVnode
-    return vnode
   }
 }
 ```
+stateMixin执行的是关于状态观察的一系列方法的并入，主要是三个方面：
+- 定义实例$data和$props属性的存取器
+- 定义实例的$set、$delete方法，具体实在定义在观察者模块中
+- 定义实例的$watch方法
+
+
 
 ### 事件
 ```js
@@ -650,6 +353,7 @@ export function eventsMixin (Vue: Class<Component>) {
   }
 }
 ```
+eventsMixin的内容非常直观，分别为实例原型对象挂载了`$on`、`$once`、`$off`、`$emit`四个方法，内容比较简单，不一一注释解释了。
 
 ### 生命周期
 ```js
@@ -734,6 +438,98 @@ export function lifecycleMixin (Vue: Class<Component>) {
     if (vm.$vnode) {
       vm.$vnode.parent = null
     }
+  }
+}
+```
+
+### 渲染
+```js
+// 导出renderMixin函数，接收形参Vue，
+// 使用Flow进行静态类型检查指定为Component类
+export function renderMixin (Vue: Class<Component>) {
+  // 为Vue原型对象绑定运行时相关的辅助方法
+  // install runtime convenience helpers
+  installRenderHelpers(Vue.prototype)
+
+  // 定义Vue原型对象的$nextTick方法，接收函数类型的fn形参
+  Vue.prototype.$nextTick = function (fn: Function) {
+    // nextTick函数的执行结果
+    return nextTick(fn, this)
+  }
+
+  // 定义Vue原型对象的_render方法，期望返回虚拟节点对象
+  Vue.prototype._render = function (): VNode {
+    // 将实例赋值给vm变量
+    const vm: Component = this
+    // 导出vm的$options对象的render方法和_parentVnode对象
+    const { render, _parentVnode } = vm.$options
+
+    // 重置插槽上的_rendered标志以进行重复插槽检查
+    // reset _rendered flag on slots for duplicate slot check
+    if (process.env.NODE_ENV !== 'production') {
+      for (const key in vm.$slots) {
+        // $flow-disable-line
+        vm.$slots[key]._rendered = false
+      }
+    }
+
+    // 如果有父级虚拟节点，定义并赋值实例的$scopedSlots属性
+    if (_parentVnode) {
+      vm.$scopedSlots = _parentVnode.data.scopedSlots || emptyObject
+    }
+
+    // 设置父虚拟节点，允许render函数访问占位符节点的数据
+    // set parent vnode. this allows render functions to have access
+    // to the data on the placeholder node.
+    vm.$vnode = _parentVnode
+    // 渲染节点
+    // render self
+    let vnode
+    // 在实例的渲染代理对象上调用render方法，并传入$createElement参数
+    try {
+      vnode = render.call(vm._renderProxy, vm.$createElement)
+    } catch (e) {
+      // 处理错误
+      handleError(e, vm, `render`)
+      // 返回错误渲染结果或者前一虚拟节点，防止渲染错误导致的空白组件
+      // return error render result,
+      // or previous vnode to prevent render error causing blank component
+      // 非生产环境特殊处理渲染错误
+      /* istanbul ignore else */
+      if (process.env.NODE_ENV !== 'production') {
+        if (vm.$options.renderError) {
+          try {
+            vnode = vm.$options.renderError.call(vm._renderProxy, vm.$createElement, e)
+          } catch (e) {
+            handleError(e, vm, `renderError`)
+            vnode = vm._vnode
+          }
+        } else {
+          vnode = vm._vnode
+        }
+      } else {
+        vnode = vm._vnode
+      }
+    }
+    // 在渲染函数出错时返回空虚拟节点
+    // return empty vnode in case the render function errored out
+    if (!(vnode instanceof VNode)) {
+      // 非生产环境报错
+      if (process.env.NODE_ENV !== 'production' && Array.isArray(vnode)) {
+        warn(
+          'Multiple root nodes returned from render function. Render function ' +
+          'should return a single root node.',
+          vm
+        )
+      }
+      // 创建空的虚拟节点
+      vnode = createEmptyVNode()
+    }
+    // 设置父虚拟节点
+    // set parent
+    vnode.parent = _parentVnode
+    // 返回虚拟节点
+    return vnode
   }
 }
 ```
