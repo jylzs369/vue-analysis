@@ -4,7 +4,7 @@
 Vue 2.0版本的大整改不仅在于使用功能上的优化和调整，整个代码库也发生了天翻地覆的重组。可见随着使用者的增加与声名传播，Vue自身的格局发生了很大的突破，特别体现在对Weex框架做了内部支持。不管在未来是使用Weex或者与NativeScript结合做跨平台应用开发，都还是能与React、Angular保持三足鼎立的势头。
 
 ## Vue的github仓库根目录
-先来大致了解一下整个项目的结构（摘译自[官方说明文档](https://github.com/vuejs/vue/blob/dev/.github/CONTRIBUTING.md#project-structure)）：
+先来大致了解一下整个项目的结构（摘译自[官方说明文档](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/.github/CONTRIBUTING.md#project-structure)）：
 - **`scripts`**：包含构建相关的脚本和配置文件。作者声明一般开发不需要关注此目录
 - **`dist`**：构建出的不同分发版本，只有发布新版本时才会跟新，开发分支的新特性不会反映在此
 - **`flow`**：包含使用[Flow](https://flow.org/)（静态类型检查工具）声明的类型，供全局使用
@@ -25,7 +25,7 @@ Vue 2.0版本的大整改不仅在于使用功能上的优化和调整，整个�
 
 
 ## Vue的src源码目录
-Vue最新版本的源码文件夹下分为6个目录`compiler`、`core`、`server`、`platforms`、`sfc`、`shared`。作者在[CONTRIBUTING.md](https://github.com/vuejs/vue/blob/dev/.github/CONTRIBUTING.md#project-structure)也说明了它们的内容，但在其文档中`types`文件夹已经被移出到根目录下了，这里没有修改。
+Vue最新版本的源码文件夹下分为6个目录`compiler`、`core`、`server`、`platforms`、`sfc`、`shared`。作者在[CONTRIBUTING.md](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/.github/CONTRIBUTING.md#project-structure)也说明了它们的内容，但在其文档中`types`文件夹已经被移出到根目录下了，这里没有修改。
 
 
 ### **Compiler 编译器**

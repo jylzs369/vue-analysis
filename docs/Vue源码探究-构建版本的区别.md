@@ -3,7 +3,7 @@
 基于第三方性能评估工具[Benchmark](https://www.stefankrause.net/js-frameworks-benchmark7/table.html)的测评结果可以看出Vue 2.0版本在整体的性能上得到了大幅优化，即使与React和Angular最新版相比也相差无几。在提供给使用者的构建版本方面，也进行了针对性的细化，输出了多种不同的版本，以便满足不同需求的开发者使用更精细更适合自己的版本。
 
 ## 构建版本的比较
-[官方文档](https://github.com/vuejs/vue/tree/dev/dist)上展示的概括图表（以下译自该文档）：
+[官方文档](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/dist)上展示的概括图表（以下译自该文档）：
 
 | | UMD | CommonJS | ES Module |
 | --- | --- | --- | --- |

@@ -1,10 +1,10 @@
 # Vue源码探究-核心类的实现
-*本篇源代码所在路径[vue/src/core/instance/](https://github.com/vuejs/vue/tree/dev/src/core/instance)*
+*本篇源代码所在路径[vue/src/core/instance/](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/src/core/instance)*
 
 几乎所有JS框架或插件的编写都有一个类似的模式，即向全局输出一个类或者说构造函数，通过创建实例来使用这个类的公开方法，或者使用类的静态全局方法辅助实现功能。相信精通Jquery或编写过Jquery插件的开发者会对这个模式非常熟悉。Vue.js也如出一辙，只是一开始接触这个框架的时候对它所能实现的功能的感叹盖过了它也不过是一个内容较为丰富和精致的大型类的本质。
 
 ## 核心类
-Vue的[核心类](https://github.com/vuejs/vue/blob/dev/src/core/instance/index.js)的构建文件，代码非常简单，就是一串定义构造函数的基础代码:
+Vue的[核心类](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/index.js)的构建文件，代码非常简单，就是一串定义构造函数的基础代码:
 ```js
 // 定义Vue构造函数，形参options
 function Vue (options) {
@@ -57,7 +57,7 @@ export default Vue
 
 ## 初始化的过程
 
-*下面代码位于[vue/src/core/instance/init.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/init.js)*
+*下面代码位于[vue/src/core/instance/init.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/init.js)*
 
 最先为基础类挂载的方法就是`_init()`，这是唯一在类实例化的过程中执行的函数，位于整个函数栈的最底层，其他的功能将在此方法里初步分化。
 
@@ -152,7 +152,7 @@ export function initMixin (Vue: Class<Component>) {
   }
 }
 ```
-还记得在文件组织里分析的，Component类的的具体定义可参照[这个文件](https://github.com/vuejs/vue/blob/dev/flow/component.js)。
+还记得在文件组织里分析的，Component类的的具体定义可参照[这个文件](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/flow/component.js)。
 
 初始化函数内容不多，主要做了这么几件事：
 - 整理options配置对象
