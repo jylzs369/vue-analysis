@@ -148,92 +148,135 @@ if (process.env.NODE_ENV !== 'production') {
 `data`、`watch`、`props`、`methods`、`inject`、`computed`、`provide `、各种钩子函数和`ASSET_TYPES`里包含的`component`、`directive` 、 `filter` 三个属性都分别定义了相关的合并方法，有兴趣继续了解的同学可以在同一分文件中查看，代码太长但是实现比较基础，所以没什么好详说的，可以关注一下的是某些属性是替换覆盖，而某些属性是合并成数组如各种钩子的监听函数。 
 
 ## 初始化内部组件时options的合并
-对于初始化合并options的操作分为了两个方向，一是初始化内部组件，二是初始化实例，先来说说内部组件初始化的详细内容，`initInternalComponent(vm, options)`
+对于初始化合并options的操作分为了两个方向，一是创建内部组件时的合并，二是创建非内部组件实例时的合并，先来说说内部组件初始化的详细内容，在类的实现中对应着这一句代码 `initInternalComponent(vm, options)`
  ```js
  // 输出initInternalComponent函数
  // 接受Component类型的vm参数和InternalComponentOptions类型的options参数
+ // 这里vm和options分别是创建实例时将要传入的实例对象和配置对象
  export function initInternalComponent (vm: Component, options: InternalComponentOptions) {
-  // 定义opts
+  // 定义opts，为opts和vm.$options创建以vm.constructor.options为原型的对象
   const opts = vm.$options = Object.create(vm.constructor.options)
+  // 以下为手动赋值，目的为了提升性能，因为比通过动态枚举属性来赋值的过程快
   // doing this because it's faster than dynamic enumeration.
+  // 定义父虚拟节点parentVnode并赋值
   const parentVnode = options._parentVnode
+  // 设置opts对象parent和_parentVnode属性
   opts.parent = options.parent
   opts._parentVnode = parentVnode
 
+  // 定义vnodeComponentOptions并赋值
   const vnodeComponentOptions = parentVnode.componentOptions
+  // 定义opts各属性
   opts.propsData = vnodeComponentOptions.propsData
   opts._parentListeners = vnodeComponentOptions.listeners
   opts._renderChildren = vnodeComponentOptions.children
   opts._componentTag = vnodeComponentOptions.tag
 
+  // options.render属性存在，则设置opts的render和staticRenderFns属性
   if (options.render) {
     opts.render = options.render
     opts.staticRenderFns = options.staticRenderFns
   }
 }
 ```
+可以看出 `initInternalComponent` 函数的内容比较简单，主要是为创建的内部组件的options对象手动赋值，提升性能，因为按照官方注释的说法是所有的内部组件的初始化都没有列外可以同样处理。至于什么时候会创建内部组件，这种场景目前还不太了解，能确定的是通常创建Vue实例来初始化视图页面的用法是非内部组件性质的。在这里留下一个疑问。
+
 
 ## 初始化实例时options的合并
-下面三个函数就是初始化实例合并options这条线时用到的方法。
+下面三个函数就是初始化实例合并options这条线时用到的方法，后两个函数作辅助用。对应如下带代码。主要是用来解决构造函数的默认配置选项和扩展选项之间的合并问题。
 
 ```js
+vm.$options = mergeOptions(
+  resolveConstructorOptions(vm.constructor),
+  options || {},
+  vm
+)
+```
+
+```js
+// 导出resolveConstructorOptions函数，接受Component构造函数Ctor参数
 export function resolveConstructorOptions (Ctor: Class<Component>) {
+  // 定义传入的构造函数的options属性
   let options = Ctor.options
+  // 如果Ctor.super存在则执行下面代码，这里是用来判断实例对象是否有继承
+  // 如果有的话递归的把继承的父级对象的options都拿出来合并
   if (Ctor.super) {
     const superOptions = resolveConstructorOptions(Ctor.super)
     const cachedSuperOptions = Ctor.superOptions
     if (superOptions !== cachedSuperOptions) {
+      // 如果父级的option变化了则要更新
       // super option changed,
       // need to resolve new options.
       Ctor.superOptions = superOptions
+      // 检查是否有任何后期修改/附加选项，这是为了解决之前误删注入选项的问题
       // check if there are any late-modified/attached options (#4976)
       const modifiedOptions = resolveModifiedOptions(Ctor)
+      // 如果返回有修改的选项，则扩展Ctor.extendOptions
       // update base extend options
       if (modifiedOptions) {
         extend(Ctor.extendOptions, modifiedOptions)
       }
+      // 合并继承选项和扩展选项
       options = Ctor.options = mergeOptions(superOptions, Ctor.extendOptions)
+      // 设置options.components[options.name]的引用
       if (options.name) {
         options.components[options.name] = Ctor
       }
     }
   }
+  // 返回options
   return options
 }
 
+// 以下两个函数是为了解决#4976问题的方案
+// 定义resolveModifiedOptions函数，接受Ctor参数，返回Object
 function resolveModifiedOptions (Ctor: Class<Component>): ?Object {
+  // 定义modified变量储存最终要选择保留的属性
   let modified
+  // 分别定义最新、扩展和密封的配置选项
   const latest = Ctor.options
   const extended = Ctor.extendOptions
   const sealed = Ctor.sealedOptions
+  // 遍历传入的配置选项对象
   for (const key in latest) {
+    // 如果最新的属性与密封的属性不相等，则执行去重处理
     if (latest[key] !== sealed[key]) {
       if (!modified) modified = {}
       modified[key] = dedupe(latest[key], extended[key], sealed[key])
     }
   }
+  // 返回modified
   return modified
 }
 
+// 定义dedupe函数，接收latest最新对象，extended扩展对象，sealed密封对象
 function dedupe (latest, extended, sealed) {
+  // 合并选项的时候比较最新和密封的属性，确保生命周期钩子不重复
   // compare latest and sealed to ensure lifecycle hooks won't be duplicated
   // between merges
+  // 如果latest是数组
   if (Array.isArray(latest)) {
+    // 定义res变量
     const res = []
+    // 格式化sealed和extended为数组对象
     sealed = Array.isArray(sealed) ? sealed : [sealed]
     extended = Array.isArray(extended) ? extended : [extended]
     for (let i = 0; i < latest.length; i++) {
+      // 返回扩展的选项中存在的最新对象的属性而非密封选项以排除重复选项
       // push original options and not sealed options to exclude duplicated options
       if (extended.indexOf(latest[i]) >= 0 || sealed.indexOf(latest[i]) < 0) {
         res.push(latest[i])
       }
     }
+    // 返回包含了扩展选项的数组变量
     return res
   } else {
+    // 否则直接返回latest
     return latest
   }
 }
 ```
+使用 `resolveConstructorOptions` 函数解决了继承的构造函数的选项之后，新创建的实例vm的$options对象就是继承选项和创建时传入的options选项的合并。其中虽然有很多复杂的递归调用，但是这些函数的目的都是为了确定最终的选项，理解这个目的非常重要。
 
 ---
 
