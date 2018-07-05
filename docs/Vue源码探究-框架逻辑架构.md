@@ -1,6 +1,8 @@
 # Vue源码探究-框架逻辑架构
 
 
+
+
 ### 生命周期
 *下面代码位于[vue/src/core/instance/lifecycle.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/lifecycle.js)*
 ```js
