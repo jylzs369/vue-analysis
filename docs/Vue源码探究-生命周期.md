@@ -205,17 +205,49 @@ export function lifecycleMixin (Vue: Class<Component>) {
 
 ### 生命周期钩子
 
-在生命周期定义的各种方法中，整理出如下的生命周期钩子函数的调用
+对照生命周期图示中呈现的各种钩子函数，从源码总结了他们的调用时机，顺便又学习一遍钩子执行的线路：
 - callHook(vm, 'beforeCreate')
+```js
+initLifecycle(vm)
+initEvents(vm)
+initRender(vm)
+callHook(vm, 'beforeCreate')
+```
+从 `new Vue()` 创建实例开始 ，在执行 `_init()` 方法时开始初始化了生命周期、事件和渲染。紧接着就调用了 `beforeCreate` 钩子函数。此时与数据相关的属性都还没有初始化 ，所以在这个阶段想要用获取到组件的属性是无法成功的。
+
 - callHook(vm, 'created')
+```js
+initInjections(vm) // resolve injections before data/props
+initState(vm)
+initProvide(vm) // resolve provide after data/props
+callHook(vm, 'created')
+```
+在 `beforeCreate` 调用后，继续初始化属性注入、状态、子组件属性提供器。然后立即调用 `created` 钩子，这个时候数据可访问了，但是还没有开始渲染页面，适合一些数据的初始化操作。另外provide和injection主要为高阶插件/组件库提供用例。并不推荐直接用于应用程序代码中，所以此刻我们主要注意的是观察器的初始化完成。
+到这一步之后，就开始进入渲染流程。
+
 - callHook(vm, 'beforeMount')
+
+渲染的执行流程稍微复杂一些，实例装载方法 `$mount` 是根据平台的不同需求而分别定义的，在执行 `$mount` 方法的时候，开始装载组件，具体内容在 `mountComponent` 函数中，在此函数的最开始时渲染虚拟节点之前就调用了 `beforeMount` 钩子，然后开始执行 `updateComponent` 来渲染组件视图。
+
 - callHook(vm, 'mounted')
+
+紧接着上面视图的渲染完成，`mounted` 钩子被调用。在这个钩子中还调用了内部的插入钩子渲染引用的子组件，这之后就开始处于生命周期的正常运转期。在这个时期内观察器系统开始监控所有的数据更新，进入数据更新并重新渲染视图的循环中。
+
 - callHook(vm, 'beforeUpdate')
+
+在观察器的作用下，如果有数据的更新时就会先调用 `beforeUpdate` 钩子。
+
 - callHook(vm, 'updated')
-- callHook(vm, 'activated')
-- callHook(vm, 'deactivated')
-- callHook(vm, 'beforeDestroy')
-- callHook(vm, 'destroyed')
+
+当数据更新并且完成视图渲染后调用 `updated` 钩子。这个钩子和上面的钩子会一直在生命周期运转期里不断被触发。
+
+- callHook(vm, 'activated') 和 callHook(vm, 'deactivated')
+
+`activated` 和 `deactivated` 这两个特殊钩子是在使用 `keep-alive` 组件的时候才有效。分别在组件被激活或切换到其他组件的时候被调用。 使用 `keep-alive` 模式在切换到不同组件视图的过程中不会进行重新加载，这就意味着其他的钩子函数都不会被调用，如果在离开页面和进入页面的时候执行某些操作，这两个钩子就非常有用。
+
+- callHook(vm, 'beforeDestroy') 和 callHook(vm, 'destroyed')
+
+`beforeDestroy` 和 `destroyed` 钩子与上面的两个钩子相对应，是在普通模式下会有效的钩子。实例的生命周期的最后阶段就是执行销毁，在销毁之前调用 `beforeDestroy`。然后清除了所有的数据引用、观察器和事件监听器。最后调用 `destroyed` 宣告生命周期的完全终止。
 
 ---
 
