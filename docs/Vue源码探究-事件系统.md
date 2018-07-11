@@ -1,4 +1,4 @@
-# Vue源码探究-事件的实现
+# Vue源码探究-事件系统
 
 ### 事件
 *下面代码位于[vue/src/core/instance/events.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/events.js)*
