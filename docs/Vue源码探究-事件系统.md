@@ -1,6 +1,9 @@
 # Vue源码探究-事件系统
 
-### 事件
+生命周期开始之后的第一步就是初始化事件相关的属性和方法。
+
+## 事件初始化
+
 *下面代码位于[vue/src/core/instance/events.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/events.js)*
 ```js
 // 导出eventsMixin函数，接收形参Vue，
