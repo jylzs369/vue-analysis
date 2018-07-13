@@ -1,9 +1,134 @@
 # Vue源码探究-事件系统
 
 *本章代码位于[vue/src/core/instance/events.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/events.js)*
-生命周期开始之后的第一步就是初始化事件相关的属性和方法。
+
+紧跟着生命周期之后的就是继续初始化事件相关的属性和方法。整个事件系统的代码相对其他模块来说非常简短，分几个部分来详细看看它的所有具体实现。
+
+## 头部引用
+```js
+import {
+  tip,
+  toArray,
+  hyphenate,
+  handleError,
+  formatComponentName
+} from '../util/index'
+import { updateListeners } from '../vdom/helpers/index'
+```
+头部先是引用了的一些工具方法，没有什么难点，具体可以查看相应文件。唯一值得注意的是引用自虚拟节点模块的一个叫 `updateListeners` 方法。顾名思义，是用来更新监听器的，至于为什么要有这样的一个方法，主要是因为如果该实例的父组件已经存在一些事件监听器，为了正确捕获到事件并向上冒泡，父级事件是需要继承下来的；另外，如果在实例初始化的时候绑定了同名的事件处理器，也需要为同名事件添加新的处理器，以实现同一事件的多个监听器的绑定，这个原因在下面的初始化代码中有佐证。
 
 ## 事件初始化
+```js
+// 定义并导出initEvents函数，接受Component类型的vm参数
+export function initEvents (vm: Component) {
+  // 创建例的_events属性，初始化为空对象
+  vm._events = Object.create(null)
+  // 创建实例的_hasHookEvent属性，初始化为false
+  vm._hasHookEvent = false
+  // 初始化父级附属事件
+  // init parent attached events
+  const listeners = vm.$options._parentListeners
+  // 如果父级事件存在，则更新实例事件监听器
+  if (listeners) {
+    updateComponentListeners(vm, listeners)
+  }
+}
+
+// 设置target值，目标是引用实例
+let target: any
+
+// 添加事件函数，接受事件名称、事件处理器、是否一次性执行三个参数
+function add (event, fn, once) {
+  if (once) {
+    target.$once(event, fn)
+  } else {
+    target.$on(event, fn)
+  }
+}
+
+// 移除事件函数，接受事件名称和时间处理器两个参数
+function remove (event, fn) {
+  target.$off(event, fn)
+}
+
+// 定义并导出函数updateComponentListeners，接受实例对象，新旧监听器参数
+export function updateComponentListeners (
+  vm: Component,
+  listeners: Object,
+  oldListeners: ?Object
+) {
+  // 设置target为vm
+  target = vm
+  // 执行更新监听器函数，传入新旧事件监听对象、添加事件与移除事件函数、实例对象
+  updateListeners(listeners, oldListeners || {}, add, remove, vm)
+  // 置空引用
+  target = undefined
+}
+```
+如上述代码所示，事件监听系统的初始化首先是创建了私有的事件对象和是否有事件钩子的标志两个属性，然后根据父级是否有事件处理器来决定是否更新当前实例的事件监听器，具体如何实现监听器的更新，贴上这段位于[虚拟节点模块的辅助函数](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/vdom/helpers/update-listeners.js)中的代码片段来仔细看看。
+
+### 更新事件监听器
+```js
+// 定义并导出updateListeners哈数
+// 接受新旧事件监听器对象，事件添加和移除函数以及实例对象参数。
+export function updateListeners (
+  on: Object,
+  oldOn: Object,
+  add: Function,
+  remove: Function,
+  vm: Component
+) {
+  // 定义一些辅助变量
+  let name, def, cur, old, event
+  // 遍历新的监听器对象
+  for (name in on) {
+    // 为def和cur赋值为新的事件对象
+    def = cur = on[name]
+    // 为old赋值为旧的事件对象
+    old = oldOn[name]
+    // 标准化事件对象并赋值给event。normalizeEvent函数主要是用于将传入的带有特殊前缀的事件字符串分解为具有特定值的事件对象
+    event = normalizeEvent(name)
+    // 下面代码是weex框架专用，处理cur变量和格式化好的事件对象的参数属性
+    /* istanbul ignore if */
+    if (__WEEX__ && isPlainObject(def)) {
+      cur = def.handler
+      event.params = def.params
+    }
+    // 如果新事件不存在，在非生产环境中提供报错信息，否则不执行任何操作
+    if (isUndef(cur)) {
+      process.env.NODE_ENV !== 'production' && warn(
+        `Invalid handler for event "${event.name}": got ` + String(cur),
+        vm
+      )
+    // 当旧事件不存在时
+    } else if (isUndef(old)) {
+      // 如果新事件对象cur的fns属性不存在
+      if (isUndef(cur.fns)) {
+        // 创建函数调用器并重新复制给cur和on[name]
+        cur = on[name] = createFnInvoker(cur)
+      }
+      // 添加新的事件处理器
+      add(event.name, cur, event.once, event.capture, event.passive, event.params)
+    // 如果新旧事件不完全相等
+    } else if (cur !== old) {
+      // 用新事件处理函数覆盖旧事件对象的fns属性
+      old.fns = cur
+      // 将事件对象重新复制给on
+      on[name] = old
+    }
+  }
+  // 遍历旧事件监听器
+  for (name in oldOn) {
+    // 如果新事件对象不存在
+    if (isUndef(on[name])) {
+      // 标准化事件对象
+      event = normalizeEvent(name)
+      // 移除事件处理器
+      remove(event.name, oldOn[name], event.capture)
+    }
+  }
+}
+```
 
 ```js
 // 导出eventsMixin函数，接收形参Vue，
