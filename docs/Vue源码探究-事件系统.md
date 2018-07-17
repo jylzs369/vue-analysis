@@ -86,7 +86,8 @@ export function updateListeners (
     def = cur = on[name]
     // 为old赋值为旧的事件对象
     old = oldOn[name]
-    // 标准化事件对象并赋值给event。normalizeEvent函数主要是用于将传入的带有特殊前缀的事件字符串分解为具有特定值的事件对象
+    // 标准化事件对象并赋值给event。
+    // normalizeEvent函数主要用于将传入的带有特殊前缀的事件修饰符分解为具有特定值的事件对象
     event = normalizeEvent(name)
     // 下面代码是weex框架专用，处理cur变量和格式化好的事件对象的参数属性
     /* istanbul ignore if */
