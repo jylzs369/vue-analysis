@@ -8,5 +8,7 @@
 ### Observer
 
 ### Dep
+Dep是作为存储对某一数据有依赖关系的对象而定义的。
+
 
 ### Watcher
