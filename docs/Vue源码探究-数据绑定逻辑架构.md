@@ -1,5 +1,7 @@
 # Vue源码探究-数据绑定逻辑架构
 
+*本篇源代码所在路径[vue/src/core/instance/](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/src/core/observer)*
+
 观察者系统是Vue实现数据绑定、无刷更新的主要依赖功能，观察者的实现也是Vue源码里比较复杂的部分，在仔细研究具体实现之前，先对整个数据绑定的逻辑架构进行一个充分的认识，会更有助于解读源码。
 
 ## 数据绑定逻辑架构
