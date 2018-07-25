@@ -15,7 +15,13 @@
       el: '#component1',
       data () {
         return {
-          msg: 'hello'
+          msg: 'hello',
+          name: ''
+        }
+      },
+      watch: {
+        'msg' (value) {
+          console.log('msg更新了')
         }
       }
     })
