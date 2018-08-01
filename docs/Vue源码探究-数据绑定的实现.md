@@ -1,5 +1,4 @@
-# Vue源码探究-
-
+# Vue源码探究-数据绑定的实现
 
 ### 状态
 *下面代码位于[vue/src/core/instance/state.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/state.js)*
