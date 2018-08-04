@@ -1,6 +1,6 @@
 # Vue源码探究-事件系统
 
-*本章代码位于[vue/src/core/instance/events.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/events.js)*
+*本篇代码位于[vue/src/core/instance/events.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/events.js)*
 
 紧跟着生命周期之后的就是继续初始化事件相关的属性和方法。整个事件系统的代码相对其他模块来说非常简短，分几个部分来详细看看它的具体实现。
 
