@@ -1,4 +1,4 @@
-# Vue源码探究-数据绑定的实现
+# Vue源码探究-状态初始化
 
 ### 状态
 *下面代码位于[vue/src/core/instance/state.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/state.js)*
