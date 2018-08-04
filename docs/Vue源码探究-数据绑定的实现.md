@@ -1,6 +1,8 @@
 # Vue源码探究-数据绑定的实现
 
-*本章代码位于[vue/src/core/observer/](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/src/core/observer)*
+*本篇代码位于[vue/src/core/observer/](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/src/core/observer)*
+
+在总结完[数据绑定实现的逻辑架构](Vue源码探究-数据绑定逻辑架构.md)一篇后，已经对Vue的数据观察系统的角色和各自的功能有了比较透彻的了解，这一篇继续仔细分析下源码的具体实现。
 
 ## Observer
 
