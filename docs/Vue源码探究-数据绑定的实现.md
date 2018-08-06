@@ -320,40 +320,54 @@ function dependArray (value: Array<any>) {
 ## Dep
 
 ```js
-import type Watcher from './watcher'
-import { remove } from '../util/index'
-
 let uid = 0
 
+// dep是个可观察对象，可以有多个指令订阅它
 /**
  * A dep is an observable that can have multiple
  * directives subscribing to it.
  */
+// 定义并导出Dep类
 export default class Dep {
+  // 定义变量
+  // 私有变量，当前评估watcher对象
   static target: ?Watcher;
+  // dep实例Id
   id: number;
+  // dep实例监视器/订阅者数组
   subs: Array<Watcher>;
 
+  // 定义构造器
   constructor () {
+    // 初始化时赋予递增的id
     this.id = uid++
     this.subs = []
   }
 
+  // 定义addSub方法，接受Watcher类型的sub参数
   addSub (sub: Watcher) {
+    // 向subs数组里添加新的watcher
     this.subs.push(sub)
   }
 
+  // 定义removeSub方法，接受Watcher类型的sub参数
   removeSub (sub: Watcher) {
+    // 从subs数组里移除指定watcher
     remove(this.subs, sub)
   }
 
+  // 定义depend方法，将观察对象和watcher建立依赖
   depend () {
+    // 在创建Wacther的时候会将在创建的Watcher赋值给Dep.target
+    // 建立依赖时如果存在Watcher，则会调用Watcher的addDep方法
     if (Dep.target) {
       Dep.target.addDep(this)
     }
   }
 
+  // 定义notify方法，通知更新
   notify () {
+    // 调用每个订阅者的update方法实现更新
     // stabilize the subscriber list first
     const subs = this.subs.slice()
     for (let i = 0, l = subs.length; i < l; i++) {
@@ -362,18 +376,25 @@ export default class Dep {
   }
 }
 
+// Dep.target用来存放目前正在评估的watcher
+// 全局唯一，并且一次也只能有一个watcher被评估
 // the current target watcher being evaluated.
 // this is globally unique because there could be only one
 // watcher being evaluated at any time.
 Dep.target = null
+// targetStack用来存放watcher栈
 const targetStack = []
 
+// 定义并导出pushTarget函数，接受Watcher类型的参数
 export function pushTarget (_target: ?Watcher) {
+  // 入栈并将当前watcher赋值给Dep.target
   if (Dep.target) targetStack.push(Dep.target)
   Dep.target = _target
 }
 
+// 定义并导出popTarget函数
 export function popTarget () {
+  // 出栈操作
   Dep.target = targetStack.pop()
 }
 ```
@@ -383,31 +404,37 @@ export function popTarget () {
 ````js
 let uid = 0
 
+// watcher用来解析表达式，收集依赖对象，并在表达式的值变动时执行回调函数
+// 全局的$watch()方法和指令都以同样方式实现
 /**
  * A watcher parses an expression, collects dependencies,
  * and fires callback when the expression value changes.
  * This is used for both the $watch() api and directives.
  */
+// 定义并导出Watcher类
 export default class Watcher {
-  vm: Component;
-  expression: string;
-  cb: Function;
-  id: number;
-  deep: boolean;
-  user: boolean;
-  computed: boolean;
-  sync: boolean;
-  dirty: boolean;
-  active: boolean;
-  dep: Dep;
-  deps: Array<Dep>;
-  newDeps: Array<Dep>;
-  depIds: SimpleSet;
-  newDepIds: SimpleSet;
-  before: ?Function;
-  getter: Function;
-  value: any;
+  // 定义变量
+  vm: Component; // 实例
+  expression: string; // 表达式
+  cb: Function; // 回调函数
+  id: number; // watcher实例Id
+  deep: boolean; // 是否深层依赖
+  user: boolean; // 是否用户定义
+  computed: boolean; // 是否计算属性
+  sync: boolean; // 是否同步
+  dirty: boolean;  // 是否为脏监视器
+  active: boolean; // 是否激活中
+  dep: Dep; // 依赖对象
+  deps: Array<Dep>; // 依赖对象数组
+  newDeps: Array<Dep>; // 新依赖对象数组
+  depIds: SimpleSet;  // 依赖id集合
+  newDepIds: SimpleSet; // 新依赖id集合
+  before: ?Function; // 先行调用函数
+  getter: Function; // 指定getter
+  value: any; // 观察值
 
+  // 定义构造函数
+  // 接收vue实例，表达式对象，回调函数，配置对象，是否渲染监视器5个参数
   constructor (
     vm: Component,
     expOrFn: string | Function,
@@ -415,11 +442,15 @@ export default class Watcher {
     options?: ?Object,
     isRenderWatcher?: boolean
   ) {
+    // 下面是对实例属性的赋值
     this.vm = vm
+    // 如果是渲染监视器则将它赋值给实例的_watcher属性
     if (isRenderWatcher) {
       vm._watcher = this
     }
+    // 添加到vm._watchers数组中
     vm._watchers.push(this)
+    // 如果配置对象存在，初始化一些配置属性
     // options
     if (options) {
       this.deep = !!options.deep
@@ -428,6 +459,7 @@ export default class Watcher {
       this.sync = !!options.sync
       this.before = options.before
     } else {
+      // 否则将配属性设为false
       this.deep = this.user = this.computed = this.sync = false
     }
     this.cb = cb
@@ -441,11 +473,16 @@ export default class Watcher {
     this.expression = process.env.NODE_ENV !== 'production'
       ? expOrFn.toString()
       : ''
+    // 设置监视器的getter方法
     // parse expression for getter
+    // 如果传入的expOrFn参数是函数直接赋值给getter属性
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn
     } else {
+      // 否则解析传入的表达式的路径，返回最后一级数据对象
+      // 这里是支持使用点符号获取属性的表达式来获取嵌套需观测数据
       this.getter = parsePath(expOrFn)
+      // 不存在getter则设置空函数
       if (!this.getter) {
         this.getter = function () {}
         process.env.NODE_ENV !== 'production' && warn(
@@ -456,58 +493,77 @@ export default class Watcher {
         )
       }
     }
+    // 如果是计算属性，创建dep属性
     if (this.computed) {
       this.value = undefined
+      // 
       this.dep = new Dep()
     } else {
+      // 负责调用get方法获取观测值
       this.value = this.get()
     }
   }
 
+  // 评估getter，并重新收集依赖项
   /**
    * Evaluate the getter, and re-collect dependencies.
    */
   get () {
+    // 将实例添加到watcher栈中
     pushTarget(this)
     let value
     const vm = this.vm
+    // 尝试调用vm的getter方法
     try {
       value = this.getter.call(vm, vm)
     } catch (e) {
+      // 捕捉到错误时，如果是用户定义的watcher则处理异常
       if (this.user) {
         handleError(e, vm, `getter for watcher "${this.expression}"`)
       } else {
+        // 否则抛出异常
         throw e
       }
     } finally {
+      // 最终执行“触摸”每个属性的操作，以便将它们全部跟踪为深度监视的依赖关系
       // "touch" every property so they are all tracked as
       // dependencies for deep watching
       if (this.deep) {
+        // traverse方法递归每一个对象，将对象的每级属性收集为深度依赖项
         traverse(value)
       }
+      // 执行出栈
       popTarget()
+      // 调用实例cleanupDeps方法
       this.cleanupDeps()
     }
+    // 返回观测数据
     return value
   }
 
+  // 添加依赖
   /**
    * Add a dependency to this directive.
    */
+  // 定义addDep方法，接收Dep类型依赖实例对象
   addDep (dep: Dep) {
     const id = dep.id
+    // 如果不存在依赖，将新依赖对象id和对象添加进相应数组中
     if (!this.newDepIds.has(id)) {
       this.newDepIds.add(id)
       this.newDeps.push(dep)
+      // 并在dep对象中添加监视器自身
       if (!this.depIds.has(id)) {
         dep.addSub(this)
       }
     }
   }
 
+  // 清理依赖项集合
   /**
    * Clean up for dependency collection.
    */
+  // 定义cleanupDeps方法
   cleanupDeps () {
     let i = this.deps.length
     while (i--) {
