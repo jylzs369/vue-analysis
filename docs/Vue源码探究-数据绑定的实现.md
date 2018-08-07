@@ -401,7 +401,7 @@ export function popTarget () {
 
 ## Watcher
 
-````js
+```js
 let uid = 0
 
 // watcher用来解析表达式，收集依赖对象，并在表达式的值变动时执行回调函数
@@ -566,12 +566,18 @@ export default class Watcher {
   // 定义cleanupDeps方法
   cleanupDeps () {
     let i = this.deps.length
+    // 遍历依赖列表
     while (i--) {
       const dep = this.deps[i]
+      // 如果监视器的依赖对象列表中含有当前依赖对象
+      // 从依赖对象中移除该监视器
       if (!this.newDepIds.has(dep.id)) {
         dep.removeSub(this)
       }
     }
+    // 重置监视器的依赖相关属性，
+    // 将新建立的依赖转换成常规依赖
+    // 并清空新依赖列表
     let tmp = this.depIds
     this.depIds = this.newDepIds
     this.newDepIds = tmp
@@ -582,61 +588,86 @@ export default class Watcher {
     this.newDeps.length = 0
   }
 
+  // 订阅者接口，当依赖项变更时调用
   /**
-   * Subscriber interface.
+   * Subscriber   .
    * Will be called when a dependency changes.
    */
+  // 定义update方法
   update () {
+    // 如果是计算属性
     /* istanbul ignore else */
     if (this.computed) {
+      // 计算属性的观察有两种模式：懒模式和立即模式
+      // 默认都设置为懒模式，要使用立即模式需要至少有一个订阅者，
+      // 典型情况下是另一个计算属性或渲染函数
       // A computed property watcher has two modes: lazy and activated.
       // It initializes as lazy by default, and only becomes activated when
       // it is depended on by at least one subscriber, which is typically
       // another computed property or a component's render function.
+      // 当不存在依赖列表
       if (this.dep.subs.length === 0) {
+        // 设置dirty属性为true，这是因为在懒模式下只在需要的时候才执行计算，
+        // 所以为了稍后执行先把dirty属性设置成true,这样在属性被访问的时候
+        // 才会执行真实的计算过程。
         // In lazy mode, we don't want to perform computations until necessary,
         // so we simply mark the watcher as dirty. The actual computation is
         // performed just-in-time in this.evaluate() when the computed property
         // is accessed.
         this.dirty = true
       } else {
+        // 在立即执行模式中，需要主动执行计算
+        // 但只在值真正变化的时候才通知订阅者
         // In activated mode, we want to proactively perform the computation
         // but only notify our subscribers when the value has indeed changed.
+        // 调用getAndInvoke函数，判断是否观测值真正变化，并发布更新通知
         this.getAndInvoke(() => {
           this.dep.notify()
         })
       }
     } else if (this.sync) {
+      // 如果同步执行，则调用实例run方法
       this.run()
     } else {
+      // 否则将监视器添加进待评估队列
       queueWatcher(this)
     }
   }
 
+  // 调度工作接口，会被调度器调用
   /**
    * Scheduler job interface.
    * Will be called by the scheduler.
    */
+  // 定义run方法
   run () {
+    // 如果当前监视器处于活跃状态，则立即调用getAndInvoke方法
     if (this.active) {
       this.getAndInvoke(this.cb)
     }
   }
 
+  // 定义getAndInvoke方法，接收一个回调函数参数
   getAndInvoke (cb: Function) {
+    // 获取新观测值
     const value = this.get()
+    // 当旧值与新值不相等，或者挂厕纸是对象，或需要深度观察时
+    // 触发变更，发布通知
     if (
       value !== this.value ||
+      // 因为对象或数组即使相等时，其值可能发生变异所以也需要触发更新
       // Deep watchers and watchers on Object/Arrays should fire even
       // when the value is the same, because the value may
       // have mutated.
       isObject(value) ||
       this.deep
     ) {
+      // 更细观测值，并设置置否dirty属性
       // set new value
       const oldValue = this.value
       this.value = value
       this.dirty = false
+      // 如果是用户自定义监视器，则在调用回调函数时设置错误捕捉
       if (this.user) {
         try {
           cb.call(this.vm, value, oldValue)
@@ -649,11 +680,14 @@ export default class Watcher {
     }
   }
 
+  // 评估和返回观测值方法，只在计算属性时被调用
   /**
    * Evaluate and return the value of the watcher.
    * This only gets called for computed property watchers.
    */
+  // 定义evaluate方法
   evaluate () {
+    // 如果是计算属性，获取观测是，并返回
     if (this.dirty) {
       this.value = this.get()
       this.dirty = false
@@ -661,35 +695,49 @@ export default class Watcher {
     return this.value
   }
 
+  // 建立监视器的依赖方法，只在计算属性调用
   /**
    * Depend on this watcher. Only for computed property watchers.
    */
+  // 定义depend方法
   depend () {
+    // 如果依赖对象存在且存在当前运行监视器，建立依赖
     if (this.dep && Dep.target) {
       this.dep.depend()
     }
   }
 
+  // 销毁监视器方法，将自身从依赖数组中移除
   /**
    * Remove self from all dependencies' subscriber list.
    */
+  // 定义teardown方法
   teardown () {
+    // 当监视器处于活跃状态，执行销毁
     if (this.active) {
+      // 从监视器列表中移除监视器是高开销操作 
+      // 所以如果实例正在销毁中则跳过销毁
       // remove self from vm's watcher list
       // this is a somewhat expensive operation so we skip it
       // if the vm is being destroyed.
+      // 当实例正常运行中，从监视器列表中移除监视器
       if (!this.vm._isBeingDestroyed) {
         remove(this.vm._watchers, this)
       }
+      // 从所有依赖列表中移除该监视器
       let i = this.deps.length
       while (i--) {
         this.deps[i].removeSub(this)
       }
+      // 将监视器的活跃状态置否
       this.active = false
     }
   }
 }
 ```
 
+本篇主要是关于源码的解释，可以翻看观察系统的原理篇来对照理解。
+
 ---
 
+在这里记录下了Vue的数据绑定具体实现的源代码的个人理解，有些细节的地方或许还认识的不够充分，观察系统里的三个类兜兜转转，关联性很强，在各自的方法中交叉地引用自身与其他类的实例，很容易让人头晕目眩，不管怎样，对于整体功能逻辑有清晰的认识，以后便能向更高层面迈进。
