@@ -12,7 +12,7 @@
 // 定义并导出initState函数，接收参数vm
 export function initState (vm: Component) {
   // 初始化实例的私有属性_watchers
-  // 这就是在观察系统里会使用到的存储所有显示监视器的对象
+  // 这就是在观察系统里会使用到的存储所有显式监视器的对象
   vm._watchers = []
   // 获取实例的配置对象
   const opts = vm.$options
@@ -37,7 +37,7 @@ export function initState (vm: Component) {
 }
 ```
 
-这段代码非常直白，主要用来执行配置对象里定义的了状态的初始化。这里分别有 `props`、`data`、`methods`、`computed`、`watch`五个配置对象，分别有各自的初始化方法。在仔细研究它们的具体实现之前，先来看一段将在各个初始化函数里用到的辅助函数。
+这段代码非常直白，主要用来执行配置对象里定义的了状态的初始化。这里分别有 `props`、`data`、`methods`、`computed`、`watch` 五个配置对象，分别有各自的初始化方法。在仔细研究它们的具体实现之前，先来看一段将在各个初始化函数里用到的辅助函数。
 
 ```js
 // 定义共享属性定义描述符对象sharedPropertyDefinition
@@ -66,7 +66,7 @@ export function proxy (target: Object, sourceKey: string, key: string) {
 }
 ```
 
-`proxy` 函数的定义非常重要，在下面要探究的各个初始化函数中它，它会将我们在配置对象中设置的属性全部定义到实例对象中，但是我们对这些属性的操作是通过各部分相应的代理属性上来执行的。`get`和`set` 方法的实现非常明白的表示出这一过程，然后再将属性定义到实例中。由这个函数作为基础，继续来看看其他五个状态的初始化函数的内容。
+`proxy` 函数的定义非常重要，在下面要探究的各个初始化函数中它，它会将我们在配置对象中设置的属性全部定义到实例对象中，但是我们对这些属性的操作是通过各部分相应的代理属性上来执行的。`get` 和 `set` 方法的实现非常明白的表示出这一过程，然后再将属性定义到实例中。由这个函数作为基础，继续来看看其他五个状态的初始化函数的内容。
 
 ### initProps
 
@@ -146,7 +146,7 @@ function initProps (vm: Component, propsOptions: Object) {
 
 `initProps` 函数的最主要内容有两点，一是对定义的数据建立观察，二是对数据进行代理，这就是私有变量 `_props` 的作用，之后获取和设置的变量都是作为 `_props` 的属性被操作。
 
-另外初始化 `props` 的过程中有针对extend方法会使用到的 `propsData` 属性的初始化。具体使用是在扩展对象时定义一些props，然后在创建实例的过程中传入propsData配置对象，扩展对象里相应的props属性会接收propsData传入的值。与在父组件传入props的值类似，只是这里要显式的通过 `propsData` 配置对象来传入值。
+另外初始化 `props` 的过程中有针对 `extend` 方法会使用到的 `propsData` 属性的初始化。具体使用是在扩展对象时定义一些 props，然后在创建实例的过程中传入  propsData 配置对象，扩展对象里相应的props属性会接收 propsData 传入的值。与在父组件传入 props 的值类似，只是这里要显式的通过 `propsData` 配置对象来传入值。
 
 ### initData
 
@@ -232,7 +232,7 @@ export function getData (data: Function, vm: Component): any {
 }
 ```
 
-与props的处理类似，`initData` 函数的作用也是为了对数据建立观察的依赖关系，并且代理数据到私有变量 `_data` 上，另外包括了对data与其他配置对象属性的键名冲突的检测。
+与 props 的处理类似，`initData` 函数的作用也是为了对数据建立观察的依赖关系，并且代理数据到私有变量 `_data` 上，另外包括了对 data 与其他配置对象属性的键名冲突的检测。
 
 ### initComputed
 
@@ -350,16 +350,20 @@ function createComputedGetter (key) {
 }
 ```
 
-计算属性的初始化相对复杂一些，首先要对计算属性建立观察，然后再在实例上重新定义计算属性，并且执行属性代理。由于加入了服务器渲染的功能，在定义计算属性的时候对使用环境做判断，是非服务器渲染会影响到计算属性的定义，这是由于服务器渲染下使用框架时，计算属性是不提供setter的；另外也要根据用户定义的值是函数或者对象来对计算属性重新定义getter和setter。从这段代码里可以看出一个非常重要的程序，即在获取计算属性的时候才去计算它的值，这正是懒加载的实现。
+计算属性的初始化相对复杂一些，首先要对计算属性建立观察，然后再在实例上重新定义计算属性，并且执行属性代理。由于加入了服务器渲染的功能，在定义计算属性的时候对使用环境做判断，是非服务器渲染会影响到计算属性的定义，这是由于服务器渲染下使用框架时，计算属性是不提供 setter 的；另外也要根据用户定义的值是函数或者对象来对计算属性重新定义 getter 和 setter。从这段代码里可以看出一个非常重要的程序，即在获取计算属性的时候才去计算它的值，这正是懒加载的实现。
 
 ### initMethods
 
 ```js
-
+// 定义initMethods方法，接受实例vm，配置属性methods
 function initMethods (vm: Component, methods: Object) {
+  // 获取实例的props
   const props = vm.$options.props
+  // 遍历methods对象
   for (const key in methods) {
+    // 非生产环境下给出警告
     if (process.env.NODE_ENV !== 'production') {
+      // 未赋值方法警告
       if (methods[key] == null) {
         warn(
           `Method "${key}" has an undefined value in the component definition. ` +
@@ -367,12 +371,14 @@ function initMethods (vm: Component, methods: Object) {
           vm
         )
       }
+      // 与props属性名冲突警告
       if (props && hasOwn(props, key)) {
         warn(
           `Method "${key}" has already been defined as a prop.`,
           vm
         )
       }
+      // 与保留字冲突警告
       if ((key in vm) && isReserved(key)) {
         warn(
           `Method "${key}" conflicts with an existing Vue instance method. ` +
@@ -380,48 +386,66 @@ function initMethods (vm: Component, methods: Object) {
         )
       }
     }
+    // 在实例上定义方法，赋值为用户未定义函数或空函数
     vm[key] = methods[key] == null ? noop : bind(methods[key], vm)
   }
 }
 ```
 
+`initMethods` 函数非常简单，除了一大段在非生产环境里报告检查冲突的代码，唯一的内容就是在实例上定义相应的方法并且把上下文绑定到实例对象上，这样即便不是使用箭头函数，在方法内也默认用 this 指代了实例对象。
+
 ### initWatch
 
 ```js
+// 定义initWatch函数，接受实例vm和配置属性watch
 function initWatch (vm: Component, watch: Object) {
+  // 遍历watch
   for (const key in watch) {
+    // 暂存属性的值
     const handler = watch[key]
+    // 如果handler是数组
     if (Array.isArray(handler)) {
+      // 遍历数组为每一个元素创建相应watcher
       for (let i = 0; i < handler.length; i++) {
         createWatcher(vm, key, handler[i])
       }
     } else {
+      // 窦否则handler应该是函数，直接为key创建watcher
       createWatcher(vm, key, handler)
     }
   }
 }
 
+// 定义createWatcher函数
+// 接受实例vm、表达式或函数expOrFn，处理器handler，可选的options
 function createWatcher (
   vm: Component,
   expOrFn: string | Function,
   handler: any,
   options?: Object
 ) {
+  // 如果handler是对象
   if (isPlainObject(handler)) {
+    // 将handler赋值给options.
     options = handler
+    // 重新赋值handler
     handler = handler.handler
   }
+  // 如果handler是字符串，在实例上寻找handler并赋值给handler
   if (typeof handler === 'string') {
     handler = vm[handler]
   }
+  // 创建观察并返回
   return vm.$watch(expOrFn, handler, options)
 }
 ```
 
+`initWatcher` 为传入的观察对象创建监视器，比较简单。值得注意的是参数的传入类型，观察对象 `expOrFn` 可以有两种方式，一种是字符串，一种是函数，在 `Watcher` 类中对此参数进行了检测，而在初始化的函数里不对它做任何处理。`handler` 对象也可以接受对象或字符串类型，在代码中对这两种传入方式做判断，最终找到handler引用的函数传入 `$watch`。
+
 
 ## stateMixin
 
-探索完了 `initState` 函数之后，继续来看看 `state` 混入的方法 `stateMixin`：
+探索完了 `initState` 函数之后，继续来看看 `state` 混入的方法 `stateMixin`，在这个函数里会提供上面还未曾提到的 `$watch` 方法的具体实现：
 
 ```js
 // 定义并导出stateMixin函数，接收参数Vue
@@ -503,11 +527,11 @@ export function stateMixin (Vue: Class<Component>) {
 }
 ```
 stateMixin执行的是关于状态观察的一系列方法的混入，主要是三个方面：
-- 定义实例$data和$props属性的存取器
-- 定义实例的$set、$delete方法，具体实在定义在观察者模块中
-- 定义实例的$watch方法
+- 定义实例 $data 和 $props 属性的存取器
+- 定义实例的 $set、$delete 方法，具体实在定义在观察者模块中
+- 定义实例的 $watch 方法
 
-到这里，关于状态初始化的部分就探索完毕了，接下来要继续研究另一个与开发过程紧密关联的部分——模板的渲染。
+到这里，关于状态初始化的部分就探索完毕了，接下来要继续研究另一个与开发过程紧密关联的部分——虚拟节点和模板渲染。
 
 ---
 
