@@ -5,10 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="X-UA-Compatible" content="ie=edge">
   <title>Vue uid</title>
+  <style>
+    username {
+      color: red;
+    }
+  </style>
 </head>
 <body>
-  <div id="component1">{{ msg }}</div>
+  <div id="component1" :style="{fontSize: '24px'}">{{ msg }} 111</div>
   <div id="component2">{{ msg }}</div>
+  <username>萨达萨达</username>
   <script src="vue.js"></script>
   <script>
     var component1 = new Vue({
