@@ -507,9 +507,9 @@ export function stateMixin (Vue: Class<Component>) {
       // 返回createWatcher函数
       return createWatcher(vm, expOrFn, cb, options)
     }
-    // 否则定义options
+    // 定义观察目标的options，大多数情况下为undefined
     options = options || {}
-    // 定义options的user属性值为true
+    // 定义options的user属性值为true，标识为用户定义
     options.user = true
     // 创建watcher实例
     const watcher = new Watcher(vm, expOrFn, cb, options)
