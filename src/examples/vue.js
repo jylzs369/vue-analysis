@@ -2645,6 +2645,8 @@ function initLifecycle (vm) {
 
 function lifecycleMixin (Vue) {
   Vue.prototype._update = function (vnode, hydrating) {
+    console.log('update', 6)
+    // console.log('mount',3)
     var vm = this;
     var prevEl = vm.$el;
     var prevVnode = vm._vnode;
@@ -2659,6 +2661,7 @@ function lifecycleMixin (Vue) {
     } else {
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode);
+      console.log('update', 11)
     }
     activeInstance = prevActiveInstance;
     // update __vue__ reference
@@ -2732,6 +2735,7 @@ function mountComponent (
   el,
   hydrating
 ) {
+  // console.log('mount', 1)
   vm.$el = el;
   if (!vm.$options.render) {
     vm.$options.render = createEmptyVNode;
@@ -2754,7 +2758,6 @@ function mountComponent (
     }
   }
   callHook(vm, 'beforeMount');
-
   var updateComponent;
   /* istanbul ignore if */
   if ("development" !== 'production' && config.performance && mark) {
@@ -2776,6 +2779,8 @@ function mountComponent (
     };
   } else {
     updateComponent = function () {
+      console.log('update', 5)
+      // console.log(2)
       vm._update(vm._render(), hydrating);
     };
   }
@@ -2958,7 +2963,7 @@ function resetSchedulerState () {
 function flushSchedulerQueue () {
   flushing = true;
   var watcher, id;
-
+  console.log('update', 2)
   // Sort queue before flush.
   // This ensures that:
   // 1. Components are updated from parent to child. (because parent is always
@@ -3001,7 +3006,6 @@ function flushSchedulerQueue () {
   var updatedQueue = queue.slice();
 
   resetSchedulerState();
-
   // call component updated and activated hooks
   callActivatedHooks(activatedQueue);
   callUpdatedHooks(updatedQueue);
@@ -3138,6 +3142,7 @@ var Watcher = function Watcher (
  */
 Watcher.prototype.get = function get () {
   pushTarget(this);
+  console.log('update', 4)
   var value;
   var vm = this.vm;
   try {
@@ -3204,6 +3209,7 @@ Watcher.prototype.cleanupDeps = function cleanupDeps () {
 Watcher.prototype.update = function update () {
     var this$1 = this;
 
+    console.log('update', 1)
   /* istanbul ignore else */
   if (this.computed) {
     // A computed property watcher has two modes: lazy and activated.
@@ -3235,6 +3241,7 @@ Watcher.prototype.update = function update () {
  * Will be called by the scheduler.
  */
 Watcher.prototype.run = function run () {
+  console.log('update', 3)
   if (this.active) {
     this.getAndInvoke(this.cb);
   }
@@ -4383,6 +4390,7 @@ function _createElement (
   children,
   normalizationType
 ) {
+  console.log(22)
   if (isDef(data) && isDef((data).__ob__)) {
     "development" !== 'production' && warn(
       "Avoid using observed data object as vnode data: " + (JSON.stringify(data)) + "\n" +
@@ -4538,7 +4546,7 @@ function renderMixin (Vue) {
     var ref = vm.$options;
     var render = ref.render;
     var _parentVnode = ref._parentVnode;
-
+    console.log(21)
     // reset _rendered flag on slots for duplicate slot check
     {
       for (var key in vm.$slots) {
@@ -5560,16 +5568,16 @@ function createPatchFunction (backend) {
       // associated DOM element for it.
       vnode = ownerArray[index] = cloneVNode(vnode);
     }
-
     vnode.isRootInsert = !nested; // for transition enter check
     if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
       return
     }
-
+    
     var data = vnode.data;
     var children = vnode.children;
     var tag = vnode.tag;
     if (isDef(tag)) {
+      // console.log('mount', 5)
       {
         if (data && data.pre) {
           creatingElmInVPre++;
@@ -5583,12 +5591,13 @@ function createPatchFunction (backend) {
           );
         }
       }
-
+      
       vnode.elm = vnode.ns
-        ? nodeOps.createElementNS(vnode.ns, tag)
-        : nodeOps.createElement(tag, vnode);
+      ? nodeOps.createElementNS(vnode.ns, tag)
+      : nodeOps.createElement(tag, vnode);
       setScope(vnode);
-
+      
+      // console.log(vnode.elm)
       /* istanbul ignore if */
       {
         createChildren(vnode, children, insertedVnodeQueue);
@@ -5597,7 +5606,7 @@ function createPatchFunction (backend) {
         }
         insert(parentElm, vnode.elm, refElm);
       }
-
+      
       if ("development" !== 'production' && data && data.pre) {
         creatingElmInVPre--;
       }
@@ -5605,6 +5614,7 @@ function createPatchFunction (backend) {
       vnode.elm = nodeOps.createComment(vnode.text);
       insert(parentElm, vnode.elm, refElm);
     } else {
+      // console.log('mount', 7)
       vnode.elm = nodeOps.createTextNode(vnode.text);
       insert(parentElm, vnode.elm, refElm);
     }
@@ -5673,6 +5683,7 @@ function createPatchFunction (backend) {
   }
 
   function insert (parent, elm, ref$$1) {
+    // console.log(mount', 8)
     if (isDef(parent)) {
       if (isDef(ref$$1)) {
         if (ref$$1.parentNode === parent) {
@@ -5690,6 +5701,7 @@ function createPatchFunction (backend) {
         checkDuplicateKeys(children);
       }
       for (var i = 0; i < children.length; ++i) {
+        // console.log('mount', 6)
         createElm(children[i], insertedVnodeQueue, vnode.elm, null, true, children, i);
       }
     } else if (isPrimitive(vnode.text)) {
@@ -5805,6 +5817,7 @@ function createPatchFunction (backend) {
   }
 
   function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {
+    console.log('update', 8)
     var oldStartIdx = 0;
     var newStartIdx = 0;
     var oldEndIdx = oldCh.length - 1;
@@ -5830,6 +5843,7 @@ function createPatchFunction (backend) {
       } else if (isUndef(oldEndVnode)) {
         oldEndVnode = oldCh[--oldEndIdx];
       } else if (sameVnode(oldStartVnode, newStartVnode)) {
+        console.log(1)
         patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue);
         oldStartVnode = oldCh[++oldStartIdx];
         newStartVnode = newCh[++newStartIdx];
@@ -5869,6 +5883,7 @@ function createPatchFunction (backend) {
       }
     }
     if (oldStartIdx > oldEndIdx) {
+      console.log(111)
       refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm;
       addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx, insertedVnodeQueue);
     } else if (newStartIdx > newEndIdx) {
@@ -5902,12 +5917,12 @@ function createPatchFunction (backend) {
   }
 
   function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
+    console.log(oldVnode, vnode)
     if (oldVnode === vnode) {
       return
     }
-
+    // console.log(oldVnode)
     var elm = vnode.elm = oldVnode.elm;
-
     if (isTrue(oldVnode.isAsyncPlaceholder)) {
       if (isDef(vnode.asyncFactory.resolved)) {
         hydrate(oldVnode.elm, vnode, insertedVnodeQueue);
@@ -5929,7 +5944,6 @@ function createPatchFunction (backend) {
       vnode.componentInstance = oldVnode.componentInstance;
       return
     }
-
     var i;
     var data = vnode.data;
     if (isDef(data) && isDef(i = data.hook) && isDef(i = i.prepatch)) {
@@ -5964,6 +5978,7 @@ function createPatchFunction (backend) {
   function invokeInsertHook (vnode, queue, initial) {
     // delay insert hooks for component root nodes, invoke them after the
     // element is really inserted
+    console.log('update', 10)
     if (isTrue(initial) && isDef(vnode.parent)) {
       vnode.parent.data.pendingInsert = queue;
     } else {
@@ -5972,14 +5987,13 @@ function createPatchFunction (backend) {
       }
     }
   }
-
   var hydrationBailed = false;
   // list of modules that can skip create hook during hydration because they
   // are already rendered on the client or has no need for initialization
   // Note: style is excluded because it relies on initial clone for future
   // deep updates (#7063).
   var isRenderedModule = makeMap('attrs,class,staticClass,staticStyle,key');
-
+  
   // Note: this is a browser-only function so we can assume elms are DOM nodes.
   function hydrate (elm, vnode, insertedVnodeQueue, inVPre) {
     var i;
@@ -5988,7 +6002,7 @@ function createPatchFunction (backend) {
     var children = vnode.children;
     inVPre = inVPre || (data && data.pre);
     vnode.elm = elm;
-
+    
     if (isTrue(vnode.isComment) && isDef(vnode.asyncFactory)) {
       vnode.isAsyncPlaceholder = true;
       return true
@@ -6044,20 +6058,20 @@ function createPatchFunction (backend) {
             if (!childrenMatch || childNode) {
               /* istanbul ignore if */
               if ("development" !== 'production' &&
-                typeof console !== 'undefined' &&
-                !hydrationBailed
-              ) {
-                hydrationBailed = true;
-                console.warn('Parent: ', elm);
-                console.warn('Mismatching childNodes vs. VNodes: ', elm.childNodes, children);
-              }
-              return false
+              typeof console !== 'undefined' &&
+              !hydrationBailed
+            ) {
+              hydrationBailed = true;
+              console.warn('Parent: ', elm);
+              console.warn('Mismatching childNodes vs. VNodes: ', elm.childNodes, children);
             }
+            return false
           }
         }
       }
-      if (isDef(data)) {
-        var fullInvoke = false;
+    }
+    if (isDef(data)) {
+      var fullInvoke = false;
         for (var key in data) {
           if (!isRenderedModule(key)) {
             fullInvoke = true;
@@ -6092,7 +6106,8 @@ function createPatchFunction (backend) {
       if (isDef(oldVnode)) { invokeDestroyHook(oldVnode); }
       return
     }
-
+    console.log('update', 7)
+    // console.log(4)
     var isInitialPatch = false;
     var insertedVnodeQueue = [];
 
@@ -6104,9 +6119,11 @@ function createPatchFunction (backend) {
       var isRealElement = isDef(oldVnode.nodeType);
       if (!isRealElement && sameVnode(oldVnode, vnode)) {
         // patch existing root node
+        console.log('patch')
         patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly);
       } else {
         if (isRealElement) {
+          console.log('real')
           // mounting to a real element
           // check if this is server-rendered content and if we can perform
           // a successful hydration.
@@ -6132,12 +6149,11 @@ function createPatchFunction (backend) {
           // create an empty node and replace it
           oldVnode = emptyNodeAt(oldVnode);
         }
-
         // replacing existing element
         var oldElm = oldVnode.elm;
         var parentElm = nodeOps.parentNode(oldElm);
-
         // create new node
+        // console.log('mount', 11)
         createElm(
           vnode,
           insertedVnodeQueue,
@@ -6147,7 +6163,7 @@ function createPatchFunction (backend) {
           oldElm._leaveCb ? null : parentElm,
           nodeOps.nextSibling(oldElm)
         );
-
+        // console.log(22)
         // update parent placeholder node element, recursively
         if (isDef(vnode.parent)) {
           var ancestor = vnode.parent;
@@ -6180,13 +6196,14 @@ function createPatchFunction (backend) {
 
         // destroy old node
         if (isDef(parentElm)) {
+          // console.log('mount', 9)
           removeVnodes(parentElm, [oldVnode], 0, 0);
         } else if (isDef(oldVnode.tag)) {
           invokeDestroyHook(oldVnode);
         }
       }
     }
-
+    console.log('update', 9)
     invokeInsertHook(vnode, insertedVnodeQueue, isInitialPatch);
     return vnode.elm
   }
@@ -10894,7 +10911,6 @@ Vue.prototype.$mount = function (
   hydrating
 ) {
   el = el && query(el);
-
   /* istanbul ignore if */
   if (el === document.body || el === document.documentElement) {
     "development" !== 'production' && warn(
@@ -10935,7 +10951,6 @@ Vue.prototype.$mount = function (
       if ("development" !== 'production' && config.performance && mark) {
         mark('compile');
       }
-
       var ref = compileToFunctions(template, {
         shouldDecodeNewlines: shouldDecodeNewlines,
         shouldDecodeNewlinesForHref: shouldDecodeNewlinesForHref,
