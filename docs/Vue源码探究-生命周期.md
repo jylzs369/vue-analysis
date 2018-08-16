@@ -67,10 +67,10 @@ export function lifecycleMixin (Vue: Class<Component>) {
     // 定义实例变量
     const vm: Component = this
     
-    // 下面三条赋值操作主要是为了存储旧属性
-    // 实例的$el属性赋值给prevEl变量，实例挂载元素
+    // 下面三条赋值操作主要是为了存储属性
+    // 实例的$el属性赋值给prevEl变量，这是新传入的实例挂载元素
     const prevEl = vm.$el
-    // 实例的_vnode属性赋值给prevVnode变量，虚拟节点
+    // 实例的_vnode属性赋值给prevVnode变量，储存的旧虚拟节点
     const prevVnode = vm._vnode
     // 将activeInstance赋值给prevActiveInstance变量，激活实例
     // activeInstance初始为null
@@ -80,7 +80,7 @@ export function lifecycleMixin (Vue: Class<Component>) {
     // 将新实例设置为activeInstance
     activeInstance = vm
     // 将传入的vnode赋值给实例的_vnode属性
-    // vnode是
+    // vnode是新生成的虚拟节点数，这里把它储存起来覆盖
     vm._vnode = vnode
     // 下面使用到的Vue.prototype .__ patch__方法是在运行时里注入的
     // 根据运行平台的不同定义
@@ -89,9 +89,12 @@ export function lifecycleMixin (Vue: Class<Component>) {
     // 如果prevVnode属性不存在说明是新创建实例
     // 执行实例属性$el的初始化渲染，否则更新节点
     if (!prevVnode) {
+      // 如果旧的虚拟节点不存在则调用patch方法
+      // 传入挂载的真实DOM节点和新生成的虚拟节点
       // initial render
       vm.$el = vm.__patch__(vm.$el, vnode, hydrating, false /* removeOnly */)
     } else {
+      // 否则执行虚拟节点更新操作，传入的是新旧虚拟节点
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode)
     }
