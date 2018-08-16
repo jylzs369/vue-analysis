@@ -153,11 +153,11 @@ export function cloneVNode (vnode: VNode): VNode {
 
 认识到 `VNode` 的实质之后，对于它的基础性的作用还是不太清楚，为什么需要创建这种对象来呢？答案就在Vue的响应式刷新里。如前所述，观察系统实现了对数据变更的监视，在收到变更的通知之后处理权就移交到渲染系统手上，渲染系统首先进行的处理就是根据变动生成新虚拟节点树，然后再去对比旧的虚拟节点树，来实现这个抽象对象的更新，简单的来说就是通过新旧两个节点树的对照，来最终确定一个真实DOM建立起来所需要依赖的抽象对象，只要这个真实 `DOM` 所依赖的对象确定好，渲染函数会把它转化成真实的 `DOM` 树。
 
-最后来概括地描述一下 `VNode` 渲染成真实 `DOM` 的步骤：
+最后来概括地描述一下 `VNode` 渲染成真实 `DOM` 的路径：
 
-## 渲染步骤
+## 渲染路径
 
-`Vue` 的渲染有两条路径：
+`Vue` 的一般渲染有两条路径：
 - 组件实例初始创建生成DOM
 - 组件数据更新刷新DOM
 
@@ -165,10 +165,42 @@ export function cloneVNode (vnode: VNode): VNode {
 
 ### 组件实例初始创建生成DOM
 
-`Vue` 组件实例初始创建时，走的是 `mount` 这条路径，在这条路径上初始是没有 `VNode` 的，要经历第一轮 `VNode` 的生成，所以在这种情况下，不需要进行与旧虚拟节点对象的比较，只需要直接创建虚拟节点树然后渲染成真实的 `DOM` 即可。这一段代码的实现是在[生命周期源码](https://github.com/vuejs/vue/blob/dev/src/core/instance/lifecycle.js)的 `mountComponent` 函数，在初次收集数据依赖创建监视器时，
+`Vue` 组件实例初始创建时，走的是 `mount` 这条路径，在这条路径上初始没有已暂存的旧虚拟节点，要经历第一轮 `VNode` 的生成。这一段代码的执行是从 `$mount` 函数开始的：
 
+> **` $mount => mountComponent => updateComponent => _render => _update => patch => createElm => insert => removeVnodes  `**
 
+大致描述一下每一个流程中所进行的关于节点的处理：
+
+- `mountComponent` 接收了挂载的真实DOM节点，然后赋值给 `vm.$el`
+- `updateComponent` 调用 `_update`，并传入 `_render` 生成的新节点
+- `_render` 生成新虚拟节点树，它内部是调用实例的 `createElement` 方法创建虚拟节点
+- `_update` 方法接收到新的虚拟节点后，会根据是否已有存储的旧虚拟节点来分离执行路径，就这一个路径来说，初始储存的 `VNode` 是不存在的，接下来执行 `patch` 操作会传入挂载的真实DOM节点和新生成的虚拟节点。
+- `patch` 执行时会将传入的真实DOM节点转换成虚拟节点，然后执行 `createElm`
+- `createElm` 会根据新的虚拟节点生成真实DOM节点，内部同样调用 `createElement` 方法来创建节点。
+- `insert` 方法将生成的真实DOM插入到DOM树中
+- `removeVnodes` 最后将之前 `patch` 转换的真实DOM节点从DOM树中移除
+
+以上就是一般初始化Vue实例组件时渲染的路径，在这个过程中，初始 `VNode` 虽然不存在，但是由于挂在的真实 `DOM` 节点一定存在，所以代码会按照这样的流程来执行。
 
 ### 组件数据更新刷新DOM
 
-一般情况下，在对数据进行依赖收集并创建监视器的时候，会把待渲染的数据观察对象加入到事件任务队列中，避免开销过高在一次处理中集中执行。所以第一次
+一般情况下，数据变成会通知 `Watcher` 实例调用 `update` 方法，这个方法在一般情况下会把待渲染的数据观察对象加入到事件任务队列中，避免开销过高在一次处理中集中执行。所以在 `mount` 路径已经完成了之后，生命周期运行期间都是走的 `update` 路径，在每一次的事件处理中 `nextTick` 会调用 `flushSchedulerQueue` 来开始一轮页面刷新：
+
+> **` flushSchedulerQueue => watcher.run => watcher.getAndInvoke => watcher.get  => updateComponent => _render => _update => patch => patchVnode => updateChildren `**
+
+在这个流程中各个方法的大致处理如下：
+
+- `flushSchedulerQueue` 调用每一个变更了的数据的监视器的 `run` 方法
+- `run` 执行调用实例的 `getAndInvoke` 方法，目的是获取新数据并调用监视器的回调函数
+- `getAndInvoke` 执行的第一步是要获取变更后的新数据，在这时会调用取值器函数
+- `get` 执行的取值器函数getter被设定为 `updateComponent`，所以会执行继续执行它
+- `updateComponent` => `patch` 之间的流程与另一条路径相同，只是其中基于新旧虚拟节点的判断不一样，如果存在旧虚拟节点就执行 `patchVnode` 操作。
+- `patchVnode` 方法是实际更新节点的实现，在这个函数的执行中，会得到最终的真实DOM
+
+生命周期中的渲染主要是以上两条路径，调用的入口不同，但中间有一部分逻辑是公用的，再根据判断来选择分离的路程来更新 `VNode` 和刷新节点。在这个过程可以看出 `VNode` 的重要作用。
+
+虽然路径大致可以这样总结，但其中的实现比较复杂。不仅在流程判断上非常有跳跃性，实现更新真实节点树的操作也都是复杂递归的调用。
+
+---
+
+总的来说虚拟节点的实现是非常平易近人，但是在节点渲染的过程中却被运用的十分复杂，段位不够高看了很多遍测试了很多遍才弄清楚整个执行流，这之外还有关于服务器端渲染和持久活跃组件的部分暂时都忽略了。不过关于节点渲染这一部分的实现逻辑非常值得去好好研究。
