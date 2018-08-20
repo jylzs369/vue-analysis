@@ -4,9 +4,51 @@
 
 ## 渲染的初始化
 
-在路径流开始之前，首先来看看实例初始化时对渲染模块的初始处理。这也是开始 `mount` 路径的前一步。
+在路径流开始之前，首先来看看实例初始化时对渲染模块的初始处理。这也是开始 `mount` 路径的前一步。初始包括两部分，一是向 `Vue` 类原型对象上挂载渲染相关的方法，而是初始化渲染相关的属性。
 
 *下面代码位于[vue/src/core/instance/render.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/render.js)*
+
+### 相关属性初始化
+
+```js
+
+export function initRender (vm: Component) {
+  vm._vnode = null // the root of the child tree
+  vm._staticTrees = null // v-once cached trees
+  const options = vm.$options
+  const parentVnode = vm.$vnode = options._parentVnode // the placeholder node in parent tree
+  const renderContext = parentVnode && parentVnode.context
+  vm.$slots = resolveSlots(options._renderChildren, renderContext)
+  vm.$scopedSlots = emptyObject
+  // bind the createElement fn to this instance
+  // so that we get proper render context inside it.
+  // args order: tag, data, children, normalizationType, alwaysNormalize
+  // internal version is used by render functions compiled from templates
+  vm._c = (a, b, c, d) => createElement(vm, a, b, c, d, false)
+  // normalization is always applied for the public version, used in
+  // user-written render functions.
+  vm.$createElement = (a, b, c, d) => createElement(vm, a, b, c, d, true)
+
+  // $attrs & $listeners are exposed for easier HOC creation.
+  // they need to be reactive so that HOCs using them are always updated
+  const parentData = parentVnode && parentVnode.data
+
+  /* istanbul ignore else */
+  if (process.env.NODE_ENV !== 'production') {
+    defineReactive(vm, '$attrs', parentData && parentData.attrs || emptyObject, () => {
+      !isUpdatingChildComponent && warn(`$attrs is readonly.`, vm)
+    }, true)
+    defineReactive(vm, '$listeners', options._parentListeners || emptyObject, () => {
+      !isUpdatingChildComponent && warn(`$listeners is readonly.`, vm)
+    }, true)
+  } else {
+    defineReactive(vm, '$attrs', parentData && parentData.attrs || emptyObject, null, true)
+    defineReactive(vm, '$listeners', options._parentListeners || emptyObject, null, true)
+  }
+}
+```
+
+### 挂载方法初始化
 
 ```js
 // 导出renderMixin函数，接收形参Vue，
@@ -99,5 +141,5 @@ export function renderMixin (Vue: Class<Component>) {
 }
 ```
 
-渲染模块挂载了两个方法 `$nextTick` 公共方法和 `_render` 私有方法。
+渲染模块挂载了两个方法 `$nextTick` 公共方法和 `_render` 私有方法。`$nextTick` 是实例的公有方法，这个很常见，就不多说；`_render` 是内部用来生成 `VNode` 的方法，在以后的流程中会看到它的作用。
 
