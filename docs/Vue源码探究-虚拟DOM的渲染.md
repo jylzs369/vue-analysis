@@ -1,6 +1,13 @@
+# Vue源码探究-虚拟DOM的渲染
 
-### 渲染
+在[虚拟节点的实现](Vue源码探究-虚拟节点的实现.md)一篇中，除了知道了 `VNode` 类的实现之前，还简要地整理了一下DOM渲染的路径。在这一篇中，主要来分析一下两条路径的具体实现代码。
+
+## 渲染的初始化
+
+在路径流开始之前，首先来看看实例初始化时对渲染模块的初始处理。这也是开始 `mount` 路径的前一步。
+
 *下面代码位于[vue/src/core/instance/render.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/render.js)*
+
 ```js
 // 导出renderMixin函数，接收形参Vue，
 // 使用Flow进行静态类型检查指定为Component类
@@ -11,15 +18,15 @@ export function renderMixin (Vue: Class<Component>) {
 
   // 挂载Vue原型对象的$nextTick方法，接收函数类型的fn形参
   Vue.prototype.$nextTick = function (fn: Function) {
-    // nextTick函数的执行结果
+    // 返回nextTick函数的执行结果
     return nextTick(fn, this)
   }
-
   // 挂载Vue原型对象的_render方法，期望返回虚拟节点对象
+  // _render方法即是根据配置对象在内部生成虚拟节点的方法
   Vue.prototype._render = function (): VNode {
     // 将实例赋值给vm变量
     const vm: Component = this
-    // 导出vm的$options对象的render方法和_parentVnode对象
+    // 导入vm的$options对象的render方法和_parentVnode对象
     const { render, _parentVnode } = vm.$options
 
     // 非生产环境下重置插槽上的_rendered标志以进行重复插槽检查
@@ -40,7 +47,7 @@ export function renderMixin (Vue: Class<Component>) {
     // set parent vnode. this allows render functions to have access
     // to the data on the placeholder node.
     vm.$vnode = _parentVnode
-    // 渲染节点
+    // 定义渲染节点
     // render self
     let vnode
     // 在实例的渲染代理对象上调用render方法，并传入$createElement参数
@@ -92,5 +99,5 @@ export function renderMixin (Vue: Class<Component>) {
 }
 ```
 
-渲染模块挂载了两个方法`$nextTick`公共方法和`_render`私有方法。关于渲染的具体实现，后面会有专门文章来做分析。
+渲染模块挂载了两个方法 `$nextTick` 公共方法和 `_render` 私有方法。
 
