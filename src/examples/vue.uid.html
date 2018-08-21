@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -13,7 +14,10 @@
 </head>
 <body>
   <!-- <div id="component1" :style="{fontSize: '24px'}">{{ msg }} 111</div> -->
-  <div id="component2"></div>
+  <div id="component2">
+    {{ msg }}
+    <msg></msg>
+  </div>
   <!-- <username>萨达萨达</username> -->
   <script src="vue.js"></script>
   <!-- <script type="text/x-template" id="component2">
@@ -34,11 +38,17 @@
         }
       }
     }) */
+    var msg = Vue.component('msg', {
+      render (h) {
+        console.log(h)
+        return h('p', '222')  
+      }
+    })
     var component2 = new Vue({
       el: '#component2',
-      template: '<p>{{ msg }}</p>',
+      // template: '<p>{{ msg }}</p>',
       components: {
-        component2
+        msg
       },
       data () {
         return {

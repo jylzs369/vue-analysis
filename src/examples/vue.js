@@ -4554,7 +4554,6 @@ function renderMixin (Vue) {
         vm.$slots[key]._rendered = false;
       }
     }
-
     if (_parentVnode) {
       vm.$scopedSlots = _parentVnode.data.scopedSlots || emptyObject;
     }
