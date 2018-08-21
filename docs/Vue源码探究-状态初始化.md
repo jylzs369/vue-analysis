@@ -1,6 +1,6 @@
 # Vue源码探究-状态初始化
 
-*本篇代码位于[vue/src/core/instance/state.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/state.js)*
+*本篇代码位于[vue/src/core/instance/state.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/state.js)*
 
 继续随着核心类的初始化展开探索其他的模块，这一篇来研究一下Vue的状态初始化。这里的状态初始化指的就是在创建实例的时候，在配置对象里定义的属性、数据变量、方法等是如何进行初始处理的。由于随后的数据更新变动都交给观察系统来负责，所以在事先弄明白了数据绑定的原理之后，就只需要将目光集中在这一部分。
 

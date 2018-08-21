@@ -1,6 +1,6 @@
 # Vue源码探究-生命周期
 
-*本篇代码位于[vue/src/core/instance/lifecycle.js](https://github.com/vuejs/vue/blob/dev/src/core/instance/lifecycle.js)*
+*本篇代码位于[vue/src/core/instance/lifecycle.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/lifecycle.js)*
 
 初步探索完了核心类的实现之后，接下来就要开始深入到Vue实现的具体功能部分了。在所有的功能开始运行之前，要来理解一下Vue的生命周期，在初始化函数中所有功能模块绑定到Vue的核心类上之前，最先开始执行了一个初始化生命周期的函数`initLifecycle(vm)`，先来看看这个函数做了些什么。
 
