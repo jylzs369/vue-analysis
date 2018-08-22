@@ -167,7 +167,7 @@ export function cloneVNode (vnode: VNode): VNode {
 
 `Vue` 组件实例初始创建时，走的是 `mount` 这条路径，在这条路径上初始没有已暂存的旧虚拟节点，要经历第一轮 `VNode` 的生成。这一段代码的执行是从 `$mount` 函数开始的：
 
-> **` $mount => mountComponent => updateComponent => _render => _update => patch => createElm => insert => removeVnodes  `**
+> **` $mount => mountComponent => updateComponent => _render => _update => createPatchFunction => createElm => insert => removeVnodes  `**
 
 大致描述一下每一个流程中所进行的关于节点的处理：
 
@@ -186,7 +186,7 @@ export function cloneVNode (vnode: VNode): VNode {
 
 一般情况下，数据变成会通知 `Watcher` 实例调用 `update` 方法，这个方法在一般情况下会把待渲染的数据观察对象加入到事件任务队列中，避免开销过高在一次处理中集中执行。所以在 `mount` 路径已经完成了之后，生命周期运行期间都是走的 `update` 路径，在每一次的事件处理中 `nextTick` 会调用 `flushSchedulerQueue` 来开始一轮页面刷新：
 
-> **` flushSchedulerQueue => watcher.run => watcher.getAndInvoke => watcher.get  => updateComponent => _render => _update => patch => patchVnode => updateChildren `**
+> **` flushSchedulerQueue => watcher.run => watcher.getAndInvoke => watcher.get  => updateComponent => _render => _update => createPatchFunction => patchVnode => updateChildren `**
 
 在这个流程中各个方法的大致处理如下：
 
