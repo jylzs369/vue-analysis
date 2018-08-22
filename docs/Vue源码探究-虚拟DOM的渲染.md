@@ -172,8 +172,381 @@ export function renderMixin (Vue: Class<Component>) {
 
 ## `mount` 路径的具体实现
 
-按照创建Vue实例的一般流程，初始化处理好之后，最后一步执行的 `vm.$mount(vm.$options.el)` 就宣告 `mount` 渲染路径的开始。记得好像还没有见过 `$mount` 的实现，因为这个函数是在运行时挂在到原型对象上的，web端的源代码在[platforms/web](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/platforms/web/runtime/index.js)中。
+按照创建Vue实例的一般流程，初始化处理好之后，最后一步执行的 `vm.$mount(vm.$options.el)` 就宣告 `mount` 渲染路径的开始。记得好像还没有见过 `$mount` 的定义，因为这个函数是在运行时挂在到原型对象上的，web端的源代码在 [platforms/web](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/platforms/web/runtime/index.js) 中，同样要值得注意的是原型的 `__patch__` 方法也是在运行时定义的。代码片段如下所示：
 
+```js
+// install platform patch function
+Vue.prototype.__patch__ = inBrowser ? patch : noop
 
+// public mount method
+Vue.prototype.$mount = function (
+  el?: string | Element,
+  hydrating?: boolean
+): Component {
+  el = el && inBrowser ? query(el) : undefined
+  return mountComponent(this, el, hydrating)
+}
+```
+
+虽然这两个方法都是在运行时才定义，但各自都是引用了核心代码中定义的实际实现函数：`mountComponent` 和 `patch`，下面就按照执行的流程一步步来解析这些实现渲染功能的函数。
+
+### `mountComponent`
+
+源代码位于[core/instance/lifecycle.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/lifecycle.js)中。
+
+```js
+export function mountComponent (
+  vm: Component,
+  el: ?Element,
+  hydrating?: boolean
+): Component {
+  vm.$el = el
+  if (!vm.$options.render) {
+    vm.$options.render = createEmptyVNode
+    if (process.env.NODE_ENV !== 'production') {
+      /* istanbul ignore if */
+      if ((vm.$options.template && vm.$options.template.charAt(0) !== '#') ||
+        vm.$options.el || el) {
+        warn(
+          'You are using the runtime-only build of Vue where the template ' +
+          'compiler is not available. Either pre-compile the templates into ' +
+          'render functions, or use the compiler-included build.',
+          vm
+        )
+      } else {
+        warn(
+          'Failed to mount component: template or render function not defined.',
+          vm
+        )
+      }
+    }
+  }
+  callHook(vm, 'beforeMount')
+
+  let updateComponent
+  /* istanbul ignore if */
+  if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
+    updateComponent = () => {
+      const name = vm._name
+      const id = vm._uid
+      const startTag = `vue-perf-start:${id}`
+      const endTag = `vue-perf-end:${id}`
+
+      mark(startTag)
+      const vnode = vm._render()
+      mark(endTag)
+      measure(`vue ${name} render`, startTag, endTag)
+
+      mark(startTag)
+      vm._update(vnode, hydrating)
+      mark(endTag)
+      measure(`vue ${name} patch`, startTag, endTag)
+    }
+  } else {
+    updateComponent = () => {
+      vm._update(vm._render(), hydrating)
+    }
+  }
+
+  // we set this to vm._watcher inside the watcher's constructor
+  // since the watcher's initial patch may call $forceUpdate (e.g. inside child
+  // component's mounted hook), which relies on vm._watcher being already defined
+  new Watcher(vm, updateComponent, noop, {
+    before () {
+      if (vm._isMounted) {
+        callHook(vm, 'beforeUpdate')
+      }
+    }
+  }, true /* isRenderWatcher */)
+  hydrating = false
+
+  // manually mounted instance, call mounted on self
+  // mounted is called for render-created child components in its inserted hook
+  if (vm.$vnode == null) {
+    vm._isMounted = true
+    callHook(vm, 'mounted')
+  }
+  return vm
+}
+```
+
+### `updateComponent`
+
+`updateComponent` 函数在上一流程中定义，在执行过程中传入为待观察属性创建的监视器中，并在首次渲染时被调用。可以在上述代码中看出，其内部是执行了实例的 `_update` 方法，并传入实例 `_render` 方法的执行结果和 `hydrating` 参数，`hydrating` 似乎是与服务器端渲染有关的标识属性，暂时不太清楚具体的作用。
+
+### `_render`
+
+在文首的 `renderMixin` 函数中定义，返回虚拟节点作为传入下一流程 `_update` 的第一个参数。
+
+### `_update`
+
+在前文[生命周期](Vue源码探究-生命周期.md)中的 `lifecycleMixin` 函数中定义，正是在这个方法中，发生了执行路径的分流，在 `mount` 路径中，执行首次渲染分支，将挂载的DOM元素和 `_render` 首次生成的虚拟节点传入 `patch` 函数中。
+
+### `patch`
+
+`patch` 方法定义在 [platforms/web/runtime/patch.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/platforms/web/runtime/patch.js)中：
+
+```js
+export const patch: Function = createPatchFunction({ nodeOps, modules })
+```
+
+从最后一句代码可以看出，`patch` 得到的是 `createPatchFunction` 执行后内部返回的 `patch` 函数，传入的是平台特有的参数。在 `createPatchFunction` 函数执行过程中定义了一系列闭包函数来实现最终的DOM渲染，具体代码非常多，简单解释一下其内部定义的各种函数的用途，最后详细探索一下 `patch` 函数的具体实现。
+
+```js
+export function createPatchFunction (backend) {
+
+  function emptyNodeAt (elm) {}
+
+  function createRmCb (childElm, listeners) {}
+
+  function removeNode (el) {}
+
+  function isUnknownElement (vnode, inVPre) {}
+
+  function createElm (
+    vnode,
+    insertedVnodeQueue,
+    parentElm,
+    refElm,
+    nested,
+    ownerArray,
+    index
+  ) {}
+
+  function initComponent (vnode, insertedVnodeQueue) {}
+
+  function reactivateComponent (vnode, insertedVnodeQueue, parentElm, refElm) {}
+
+  function insert (parent, elm, ref) {}
+
+  function createChildren (vnode, children, insertedVnodeQueue) {}
+
+  function isPatchable (vnode) {}
+
+  function invokeCreateHooks (vnode, insertedVnodeQueue) {}
+
+  // set scope id attribute for scoped CSS.
+  // this is implemented as a special case to avoid the overhead
+  // of going through the normal attribute patching process.
+  function setScope (vnode) {}
+
+  function addVnodes () {}
+
+  function invokeDestroyHook (vnode) {}
+
+  function removeVnodes (parentElm, vnodes, startIdx, endIdx) {}
+
+  function removeAndInvokeRemoveHook (vnode, rm) {}
+
+  function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {}
+
+  function checkDuplicateKeys (children) {}
+
+  function findIdxInOld (node, oldCh, start, end) {}
+
+  function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {}
+
+  function invokeInsertHook (vnode, queue, initial) {}
+
+  // Note: this is a browser-only function so we can assume elms are DOM nodes.
+  function hydrate (elm, vnode, insertedVnodeQueue, inVPre) {}
+
+  function assertNodeMatch (node, vnode, inVPre) {}
+
+  return function patch (oldVnode, vnode, hydrating, removeOnly) {
+    if (isUndef(vnode)) {
+      if (isDef(oldVnode)) invokeDestroyHook(oldVnode)
+      return
+    }
+
+    let isInitialPatch = false
+    const insertedVnodeQueue = []
+
+    if (isUndef(oldVnode)) {
+      // empty mount (likely as component), create new root element
+      isInitialPatch = true
+      createElm(vnode, insertedVnodeQueue)
+    } else {
+      const isRealElement = isDef(oldVnode.nodeType)
+      if (!isRealElement && sameVnode(oldVnode, vnode)) {
+        // patch existing root node
+        patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly)
+      } else {
+        if (isRealElement) {
+          // mounting to a real element
+          // check if this is server-rendered content and if we can perform
+          // a successful hydration.
+          if (oldVnode.nodeType === 1 && oldVnode.hasAttribute(SSR_ATTR)) {
+            oldVnode.removeAttribute(SSR_ATTR)
+            hydrating = true
+          }
+          if (isTrue(hydrating)) {
+            if (hydrate(oldVnode, vnode, insertedVnodeQueue)) {
+              invokeInsertHook(vnode, insertedVnodeQueue, true)
+              return oldVnode
+            } else if (process.env.NODE_ENV !== 'production') {
+              warn(
+                'The client-side rendered virtual DOM tree is not matching ' +
+                'server-rendered content. This is likely caused by incorrect ' +
+                'HTML markup, for example nesting block-level elements inside ' +
+                '<p>, or missing <tbody>. Bailing hydration and performing ' +
+                'full client-side render.'
+              )
+            }
+          }
+          // either not server-rendered, or hydration failed.
+          // create an empty node and replace it
+          oldVnode = emptyNodeAt(oldVnode)
+        }
+
+        // replacing existing element
+        const oldElm = oldVnode.elm
+        const parentElm = nodeOps.parentNode(oldElm)
+
+        // create new node
+        createElm(
+          vnode,
+          insertedVnodeQueue,
+          // extremely rare edge case: do not insert if old element is in a
+          // leaving transition. Only happens when combining transition +
+          // keep-alive + HOCs. (#4590)
+          oldElm._leaveCb ? null : parentElm,
+          nodeOps.nextSibling(oldElm)
+        )
+
+        // update parent placeholder node element, recursively
+        if (isDef(vnode.parent)) {
+          let ancestor = vnode.parent
+          const patchable = isPatchable(vnode)
+          while (ancestor) {
+            for (let i = 0; i < cbs.destroy.length; ++i) {
+              cbs.destroy[i](ancestor)
+            }
+            ancestor.elm = vnode.elm
+            if (patchable) {
+              for (let i = 0; i < cbs.create.length; ++i) {
+                cbs.create[i](emptyNode, ancestor)
+              }
+              // #6513
+              // invoke insert hooks that may have been merged by create hooks.
+              // e.g. for directives that uses the "inserted" hook.
+              const insert = ancestor.data.hook.insert
+              if (insert.merged) {
+                // start at index 1 to avoid re-invoking component mounted hook
+                for (let i = 1; i < insert.fns.length; i++) {
+                  insert.fns[i]()
+                }
+              }
+            } else {
+              registerRef(ancestor)
+            }
+            ancestor = ancestor.parent
+          }
+        }
+
+        // destroy old node
+        if (isDef(parentElm)) {
+          removeVnodes(parentElm, [oldVnode], 0, 0)
+        } else if (isDef(oldVnode.tag)) {
+          invokeDestroyHook(oldVnode)
+        }
+      }
+    }
+
+    invokeInsertHook(vnode, insertedVnodeQueue, isInitialPatch)
+    return vnode.elm
+  }
+}
+```
+
+### `createElm`
+```js 
+function createElm (
+  vnode,
+  insertedVnodeQueue,
+  parentElm,
+  refElm,
+  nested,
+  ownerArray,
+  index
+) {
+  if (isDef(vnode.elm) && isDef(ownerArray)) {
+    // This vnode was used in a previous render!
+    // now it's used as a new node, overwriting its elm would cause
+    // potential patch errors down the road when it's used as an insertion
+    // reference node. Instead, we clone the node on-demand before creating
+    // associated DOM element for it.
+    vnode = ownerArray[index] = cloneVNode(vnode)
+  }
+
+  vnode.isRootInsert = !nested // for transition enter check
+  if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
+    return
+  }
+
+  const data = vnode.data
+  const children = vnode.children
+  const tag = vnode.tag
+  if (isDef(tag)) {
+    if (process.env.NODE_ENV !== 'production') {
+      if (data && data.pre) {
+        creatingElmInVPre++
+      }
+      if (isUnknownElement(vnode, creatingElmInVPre)) {
+        warn(
+          'Unknown custom element: <' + tag + '> - did you ' +
+          'register the component correctly? For recursive components, ' +
+          'make sure to provide the "name" option.',
+          vnode.context
+        )
+      }
+    }
+
+    vnode.elm = vnode.ns
+      ? nodeOps.createElementNS(vnode.ns, tag)
+      : nodeOps.createElement(tag, vnode)
+    setScope(vnode)
+
+    /* istanbul ignore if */
+    if (__WEEX__) {
+      // in Weex, the default insertion order is parent-first.
+      // List items can be optimized to use children-first insertion
+      // with append="tree".
+      const appendAsTree = isDef(data) && isTrue(data.appendAsTree)
+      if (!appendAsTree) {
+        if (isDef(data)) {
+          invokeCreateHooks(vnode, insertedVnodeQueue)
+        }
+        insert(parentElm, vnode.elm, refElm)
+      }
+      createChildren(vnode, children, insertedVnodeQueue)
+      if (appendAsTree) {
+        if (isDef(data)) {
+          invokeCreateHooks(vnode, insertedVnodeQueue)
+        }
+        insert(parentElm, vnode.elm, refElm)
+      }
+    } else {
+      createChildren(vnode, children, insertedVnodeQueue)
+      if (isDef(data)) {
+        invokeCreateHooks(vnode, insertedVnodeQueue)
+      }
+      insert(parentElm, vnode.elm, refElm)
+    }
+
+    if (process.env.NODE_ENV !== 'production' && data && data.pre) {
+      creatingElmInVPre--
+    }
+  } else if (isTrue(vnode.isComment)) {
+    vnode.elm = nodeOps.createComment(vnode.text)
+    insert(parentElm, vnode.elm, refElm)
+  } else {
+    vnode.elm = nodeOps.createTextNode(vnode.text)
+    insert(parentElm, vnode.elm, refElm)
+  }
+}
+```
+
+创建了虚拟节点对应的DOM元素之后，就会调用 `insert` 方法将它插入到页面DOM树中，最后一步再调用 `removeVnodes` 方法移除掉DOM树中的旧节点。到此为止 `mount` 路径的执行就结束了。
 
 ## `update` 路径的具体实现
