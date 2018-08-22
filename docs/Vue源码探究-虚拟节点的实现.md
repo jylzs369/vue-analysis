@@ -167,7 +167,7 @@ export function cloneVNode (vnode: VNode): VNode {
 
 `Vue` 组件实例初始创建时，走的是 `mount` 这条路径，在这条路径上初始没有已暂存的旧虚拟节点，要经历第一轮 `VNode` 的生成。这一段代码的执行是从 `$mount` 函数开始的：
 
-> **` $mount => mountComponent => updateComponent => _render => _update => createPatchFunction => createElm => insert => removeVnodes  `**
+> **` $mount => mountComponent => updateComponent => _render => _update => createPatchFunction(patch) => createElm => insert => removeVnodes  `**
 
 大致描述一下每一个流程中所进行的关于节点的处理：
 
@@ -175,10 +175,10 @@ export function cloneVNode (vnode: VNode): VNode {
 - `updateComponent` 调用 `_update`，并传入 `_render` 生成的新节点
 - `_render` 生成新虚拟节点树，它内部是调用实例的 `createElement` 方法创建虚拟节点
 - `_update` 方法接收到新的虚拟节点后，会根据是否已有存储的旧虚拟节点来分离执行路径，就这一个路径来说，初始储存的 `VNode` 是不存在的，接下来执行 `patch` 操作会传入挂载的真实DOM节点和新生成的虚拟节点。
-- `patch` 执行时会将传入的真实DOM节点转换成虚拟节点，然后执行 `createElm`
+- `createPatchFunction` 即是 `patch` 方法调用的实际函数，执行时会将传入的真实DOM节点转换成虚拟节点，然后执行 `createElm`
 - `createElm` 会根据新的虚拟节点生成真实DOM节点，内部同样调用 `createElement` 方法来创建节点。
 - `insert` 方法将生成的真实DOM插入到DOM树中
-- `removeVnodes` 最后将之前 `patch` 转换的真实DOM节点从DOM树中移除
+- `removeVnodes` 最后将之前转换的真实DOM节点从DOM树中移除
 
 以上就是一般初始化Vue实例组件时渲染的路径，在这个过程中，初始 `VNode` 虽然不存在，但是由于挂在的真实 `DOM` 节点一定存在，所以代码会按照这样的流程来执行。
 
@@ -186,7 +186,7 @@ export function cloneVNode (vnode: VNode): VNode {
 
 一般情况下，数据变成会通知 `Watcher` 实例调用 `update` 方法，这个方法在一般情况下会把待渲染的数据观察对象加入到事件任务队列中，避免开销过高在一次处理中集中执行。所以在 `mount` 路径已经完成了之后，生命周期运行期间都是走的 `update` 路径，在每一次的事件处理中 `nextTick` 会调用 `flushSchedulerQueue` 来开始一轮页面刷新：
 
-> **` flushSchedulerQueue => watcher.run => watcher.getAndInvoke => watcher.get  => updateComponent => _render => _update => createPatchFunction => patchVnode => updateChildren `**
+> **` flushSchedulerQueue => watcher.run => watcher.getAndInvoke => watcher.get  => updateComponent => _render => _update => createPatchFunction(patch) => patchVnode => updateChildren `**
 
 在这个流程中各个方法的大致处理如下：
 
@@ -194,7 +194,7 @@ export function cloneVNode (vnode: VNode): VNode {
 - `run` 执行调用实例的 `getAndInvoke` 方法，目的是获取新数据并调用监视器的回调函数
 - `getAndInvoke` 执行的第一步是要获取变更后的新数据，在这时会调用取值器函数
 - `get` 执行的取值器函数getter被设定为 `updateComponent`，所以会执行继续执行它
-- `updateComponent` => `patch` 之间的流程与另一条路径相同，只是其中基于新旧虚拟节点的判断不一样，如果存在旧虚拟节点就执行 `patchVnode` 操作。
+- `updateComponent` => `createPatchFunction` 之间的流程与另一条路径相同，只是其中基于新旧虚拟节点的判断不一样，如果存在旧虚拟节点就执行 `patchVnode` 操作。
 - `patchVnode` 方法是实际更新节点的实现，在这个函数的执行中，会得到最终的真实DOM
 
 生命周期中的渲染主要是以上两条路径，调用的入口不同，但中间有一部分逻辑是公用的，再根据判断来选择分离的路程来更新 `VNode` 和刷新节点。在这个过程可以看出 `VNode` 的重要作用。
