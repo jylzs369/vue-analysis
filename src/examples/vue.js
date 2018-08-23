@@ -2645,7 +2645,7 @@ function initLifecycle (vm) {
 
 function lifecycleMixin (Vue) {
   Vue.prototype._update = function (vnode, hydrating) {
-    console.log('update', 6)
+    // console.log('update', 6)
     // console.log('mount',3)
     var vm = this;
     var prevEl = vm.$el;
@@ -2661,7 +2661,7 @@ function lifecycleMixin (Vue) {
     } else {
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode);
-      console.log('update', 11)
+      // console.log('update', 11)
     }
     activeInstance = prevActiveInstance;
     // update __vue__ reference
@@ -2779,7 +2779,7 @@ function mountComponent (
     };
   } else {
     updateComponent = function () {
-      console.log('update', 5)
+      // console.log('update', 5)
       // console.log(2)
       vm._update(vm._render(), hydrating);
     };
@@ -2963,7 +2963,7 @@ function resetSchedulerState () {
 function flushSchedulerQueue () {
   flushing = true;
   var watcher, id;
-  console.log('update', 2)
+  // console.log('update', 2)
   // Sort queue before flush.
   // This ensures that:
   // 1. Components are updated from parent to child. (because parent is always
@@ -3142,7 +3142,7 @@ var Watcher = function Watcher (
  */
 Watcher.prototype.get = function get () {
   pushTarget(this);
-  console.log('update', 4)
+  // console.log('update', 4)
   var value;
   var vm = this.vm;
   try {
@@ -3209,7 +3209,7 @@ Watcher.prototype.cleanupDeps = function cleanupDeps () {
 Watcher.prototype.update = function update () {
     var this$1 = this;
 
-    console.log('update', 1)
+    // console.log('update', 1)
   /* istanbul ignore else */
   if (this.computed) {
     // A computed property watcher has two modes: lazy and activated.
@@ -3241,7 +3241,7 @@ Watcher.prototype.update = function update () {
  * Will be called by the scheduler.
  */
 Watcher.prototype.run = function run () {
-  console.log('update', 3)
+  // console.log('update', 3)
   if (this.active) {
     this.getAndInvoke(this.cb);
   }
@@ -4146,7 +4146,8 @@ var componentVNodeHooks = {
       var mountedNode = vnode; // work around flow
       componentVNodeHooks.prepatch(mountedNode, mountedNode);
     } else {
-      var child = vnode.componentInstance = createComponentInstanceForVnode(
+      var child = vnode.componentInstance = 
+      createComponentInstanceForVnode(
         vnode,
         activeInstance
       );
@@ -4390,7 +4391,7 @@ function _createElement (
   children,
   normalizationType
 ) {
-  console.log(22)
+  // console.log(22)
   if (isDef(data) && isDef((data).__ob__)) {
     "development" !== 'production' && warn(
       "Avoid using observed data object as vnode data: " + (JSON.stringify(data)) + "\n" +
@@ -4546,7 +4547,7 @@ function renderMixin (Vue) {
     var ref = vm.$options;
     var render = ref.render;
     var _parentVnode = ref._parentVnode;
-    console.log(21)
+    // console.log(21)
     // reset _rendered flag on slots for duplicate slot check
     {
       for (var key in vm.$slots) {
@@ -5816,7 +5817,7 @@ function createPatchFunction (backend) {
   }
 
   function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {
-    console.log('update', 8)
+    // console.log('update', 8)
     var oldStartIdx = 0;
     var newStartIdx = 0;
     var oldEndIdx = oldCh.length - 1;
@@ -5842,7 +5843,7 @@ function createPatchFunction (backend) {
       } else if (isUndef(oldEndVnode)) {
         oldEndVnode = oldCh[--oldEndIdx];
       } else if (sameVnode(oldStartVnode, newStartVnode)) {
-        console.log(1)
+        // console.log(1)
         patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue);
         oldStartVnode = oldCh[++oldStartIdx];
         newStartVnode = newCh[++newStartIdx];
@@ -5882,7 +5883,7 @@ function createPatchFunction (backend) {
       }
     }
     if (oldStartIdx > oldEndIdx) {
-      console.log(111)
+      // console.log(111)
       refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm;
       addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx, insertedVnodeQueue);
     } else if (newStartIdx > newEndIdx) {
@@ -5916,7 +5917,7 @@ function createPatchFunction (backend) {
   }
 
   function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
-    console.log(oldVnode, vnode)
+    // console.log(oldVnode, vnode)
     if (oldVnode === vnode) {
       return
     }
@@ -5977,7 +5978,7 @@ function createPatchFunction (backend) {
   function invokeInsertHook (vnode, queue, initial) {
     // delay insert hooks for component root nodes, invoke them after the
     // element is really inserted
-    console.log('update', 10)
+    // console.log('update', 10)
     if (isTrue(initial) && isDef(vnode.parent)) {
       vnode.parent.data.pendingInsert = queue;
     } else {
@@ -6105,7 +6106,7 @@ function createPatchFunction (backend) {
       if (isDef(oldVnode)) { invokeDestroyHook(oldVnode); }
       return
     }
-    console.log('update', 7)
+    // console.log('update', 7)
     // console.log(4)
     var isInitialPatch = false;
     var insertedVnodeQueue = [];
@@ -6118,11 +6119,11 @@ function createPatchFunction (backend) {
       var isRealElement = isDef(oldVnode.nodeType);
       if (!isRealElement && sameVnode(oldVnode, vnode)) {
         // patch existing root node
-        console.log('patch')
+        // console.log('patch')
         patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly);
       } else {
         if (isRealElement) {
-          console.log('real')
+          // console.log('real')
           // mounting to a real element
           // check if this is server-rendered content and if we can perform
           // a successful hydration.
@@ -6202,7 +6203,7 @@ function createPatchFunction (backend) {
         }
       }
     }
-    console.log('update', 9)
+    // console.log('update', 9)
     invokeInsertHook(vnode, insertedVnodeQueue, isInitialPatch);
     return vnode.elm
   }
