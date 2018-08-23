@@ -195,14 +195,20 @@ Vue.prototype.$mount = function (
 源代码位于[core/instance/lifecycle.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/instance/lifecycle.js)中。
 
 ```js
+// 定义并导出mountComponent函数
+// 接受Vue实例vm，DOM元素el、布尔标识hydrating参数
+// 后两参数可选，返回组件实例
 export function mountComponent (
   vm: Component,
   el: ?Element,
   hydrating?: boolean
 ): Component {
+  // 设置实例的$el属性
   vm.$el = el
+  // 检测实例属性$options对象的render方法，未定义则设置为创建空节点
   if (!vm.$options.render) {
     vm.$options.render = createEmptyVNode
+    // 非生产环境检测构建版本并警告
     if (process.env.NODE_ENV !== 'production') {
       /* istanbul ignore if */
       if ((vm.$options.template && vm.$options.template.charAt(0) !== '#') ||
@@ -221,9 +227,12 @@ export function mountComponent (
       }
     }
   }
+  // 调用生命周期钩子函数beforeMount，准备首次加载
   callHook(vm, 'beforeMount')
 
+  // 定义updateComponent方法
   let updateComponent
+  // 非生产环境加入性能评估
   /* istanbul ignore if */
   if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
     updateComponent = () => {
@@ -243,14 +252,21 @@ export function mountComponent (
       measure(`vue ${name} patch`, startTag, endTag)
     }
   } else {
+    // 定义updateComponent内部调用实例的_update方法
+    // 参数为按实例状态生成的新虚拟节点树和hydrating标识
     updateComponent = () => {
       vm._update(vm._render(), hydrating)
     }
   }
 
+  // 在Watcher类内部将此监听器设置到实例的_watcher上。
+  // 由于初次patch可能调用$forceUpdate方法（例如在子组件的mounted钩子），
+  // 这依赖于已经定义好的vm._watcher
   // we set this to vm._watcher inside the watcher's constructor
   // since the watcher's initial patch may call $forceUpdate (e.g. inside child
   // component's mounted hook), which relies on vm._watcher being already defined
+  // 建立对渲染的观察，最末参数声明为渲染监听器，并传入监视器的before方法，
+  // 在初次渲染之后，实例的_isMounted为true，在每次渲染更新之前会调用update钩子
   new Watcher(vm, updateComponent, noop, {
     before () {
       if (vm._isMounted) {
@@ -258,14 +274,20 @@ export function mountComponent (
       }
     }
   }, true /* isRenderWatcher */)
+  // 设置hydrating标识为false
   hydrating = false
 
+  // 手动安装的实例，mounted调用挂载在自身
+  // 渲染创建的子组件在其插入的钩子中调用了mounted
   // manually mounted instance, call mounted on self
   // mounted is called for render-created child components in its inserted hook
+  // vm.$vnode为空设置_isMounted属性为true，并调用mounted钩子
+  // vm.$vnode为空是因为实例是根组件，没有父级节点。
   if (vm.$vnode == null) {
     vm._isMounted = true
     callHook(vm, 'mounted')
   }
+  // 返回实例
   return vm
 }
 ```
@@ -293,16 +315,23 @@ export const patch: Function = createPatchFunction({ nodeOps, modules })
 从最后一句代码可以看出，`patch` 得到的是 `createPatchFunction` 执行后内部返回的 `patch` 函数，传入的是平台特有的参数。在 `createPatchFunction` 函数执行过程中定义了一系列闭包函数来实现最终的DOM渲染，具体代码非常多，简单解释一下其内部定义的各种函数的用途，最后详细探索一下 `patch` 函数的具体实现。
 
 ```js
+// 定义并导出createPatchFunction函数，接受backend参数
+// backend参数是一个含有平台相关BOM操作的对象方法集
 export function createPatchFunction (backend) {
 
+  // 创建空虚拟节点函数
   function emptyNodeAt (elm) {}
 
+  // 创建移除DOM节点回调
   function createRmCb (childElm, listeners) {}
 
+  // 移除DOM节点
   function removeNode (el) {}
 
+  // 判断是否是未知元素
   function isUnknownElement (vnode, inVPre) {}
 
+  // 创建并插入DOM元素
   function createElm (
     vnode,
     insertedVnodeQueue,
@@ -313,52 +342,77 @@ export function createPatchFunction (backend) {
     index
   ) {}
 
+  // 初始化组件
   function initComponent (vnode, insertedVnodeQueue) {}
 
+  // 激活组件
   function reactivateComponent (vnode, insertedVnodeQueue, parentElm, refElm) {}
 
+  // 插入DOM节点
   function insert (parent, elm, ref) {}
 
+  // 创建子DOM节点
   function createChildren (vnode, children, insertedVnodeQueue) {}
 
+  // 判断节点是否可对比更新
   function isPatchable (vnode) {}
 
+  // 调用创建钩子
   function invokeCreateHooks (vnode, insertedVnodeQueue) {}
 
+  // 为组件作用域CSS设置范围id属性。
+  // 这是作为一种特殊情况实现的，以避免通过正常的属性修补过程的开销。
   // set scope id attribute for scoped CSS.
   // this is implemented as a special case to avoid the overhead
   // of going through the normal attribute patching process.
+  // 设置CSS作用域ID
   function setScope (vnode) {}
 
+  // 添加虚拟节点，内部调用createElm
   function addVnodes () {}
 
+  // 调用销毁钩子
   function invokeDestroyHook (vnode) {}
 
+  // 移除虚拟节点，内部调用removeNode或removeAndInvokeRemoveHook
   function removeVnodes (parentElm, vnodes, startIdx, endIdx) {}
 
+  // 调用移除事件回调函数并移除节点
   function removeAndInvokeRemoveHook (vnode, rm) {}
 
+  // 更新子节点
   function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {}
 
+  // 检查重复key
   function checkDuplicateKeys (children) {}
 
+  // 寻找旧子节点索引
   function findIdxInOld (node, oldCh, start, end) {}
 
+  // 对比并更新虚拟节点
   function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {}
 
+  // 调用插入钩子
   function invokeInsertHook (vnode, queue, initial) {}
 
+  // 渲染混合
+  // 注意：这是一个仅限浏览器的函数，因此我们可以假设elms是DOM节点。
   // Note: this is a browser-only function so we can assume elms are DOM nodes.
   function hydrate (elm, vnode, insertedVnodeQueue, inVPre) {}
 
+  // 判断节点匹配
   function assertNodeMatch (node, vnode, inVPre) {}
 
+  // 节点补丁函数
+  // 接受旧新虚拟节点，hydrating和removeOnly标识
   return function patch (oldVnode, vnode, hydrating, removeOnly) {
+    // 如果新虚拟节点未定义且存在旧节点，则调用销毁节点操作并返回
     if (isUndef(vnode)) {
       if (isDef(oldVnode)) invokeDestroyHook(oldVnode)
       return
     }
 
+    // 
     let isInitialPatch = false
     const insertedVnodeQueue = []
 
