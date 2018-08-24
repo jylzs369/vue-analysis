@@ -407,29 +407,45 @@ export function createPatchFunction (backend) {
   // 接受旧新虚拟节点，hydrating和removeOnly标识
   return function patch (oldVnode, vnode, hydrating, removeOnly) {
     // 如果新虚拟节点未定义且存在旧节点，则调用销毁节点操作并返回
+    // 这一步的判断是因为在旧虚拟节点存时，变动后没有生成新虚拟节点
+    // 则说明新结构是不存在的，所以要清空旧节点。
     if (isUndef(vnode)) {
       if (isDef(oldVnode)) invokeDestroyHook(oldVnode)
       return
     }
 
-    // 
+    // 初始化isInitialPatch标识和insertedVnodeQueue队列
     let isInitialPatch = false
     const insertedVnodeQueue = []
 
+    // 以下分两种情况构建节点：
+    // 如果不存在旧虚拟节点
     if (isUndef(oldVnode)) {
+      // 空挂载（比如组件），会创建新的根元素
       // empty mount (likely as component), create new root element
+      // 这种情况说明时首次渲染，设置isInitialPatch为true
       isInitialPatch = true
+      // 根据虚拟节点创建新DOM节点
       createElm(vnode, insertedVnodeQueue)
     } else {
+      // 存在旧虚拟节点
+      // 判断旧虚拟节点是否是真实的DOM元素
       const isRealElement = isDef(oldVnode.nodeType)
+      // 如果不是真实DOM节点并且新旧虚拟节点根节点相同
       if (!isRealElement && sameVnode(oldVnode, vnode)) {
+        // 执行比较新旧节点更新DOM操作
         // patch existing root node
         patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly)
       } else {
+        // 新旧节点不相同的情况
+        // 旧节点是DOM元素时先将旧节点转换成虚拟节点
         if (isRealElement) {
+          // 挂在到真实DOM元素
+          // 检查是否是服务器渲染，然后执行合并操作
           // mounting to a real element
           // check if this is server-rendered content and if we can perform
           // a successful hydration.
+          // 下面这两个if语句里的操作都是服务器渲染相关，暂不去了解
           if (oldVnode.nodeType === 1 && oldVnode.hasAttribute(SSR_ATTR)) {
             oldVnode.removeAttribute(SSR_ATTR)
             hydrating = true
@@ -448,19 +464,23 @@ export function createPatchFunction (backend) {
               )
             }
           }
+          // 如果不是服务器渲染或合并失败，生成空的虚拟节点
           // either not server-rendered, or hydration failed.
           // create an empty node and replace it
           oldVnode = emptyNodeAt(oldVnode)
         }
 
+        // 定义旧元素oldElm和其父元素
         // replacing existing element
         const oldElm = oldVnode.elm
         const parentElm = nodeOps.parentNode(oldElm)
 
+        // 根据新虚拟节点创建新DOM元素，并且会插入到DOM树中
         // create new node
         createElm(
           vnode,
           insertedVnodeQueue,
+          // 以下参数是#4590问题的解决处理
           // extremely rare edge case: do not insert if old element is in a
           // leaving transition. Only happens when combining transition +
           // keep-alive + HOCs. (#4590)
@@ -468,6 +488,9 @@ export function createPatchFunction (backend) {
           nodeOps.nextSibling(oldElm)
         )
 
+        // 如果新的虚拟节点有父级则以递归方式更新父占位符节点元素
+        // cbs是在生成patch函数时初始化好的事件监听器
+        // 在此条件中也会被逐一触发
         // update parent placeholder node element, recursively
         if (isDef(vnode.parent)) {
           let ancestor = vnode.parent
@@ -498,23 +521,39 @@ export function createPatchFunction (backend) {
           }
         }
 
+        // 销毁旧节点
         // destroy old node
+        // 如果旧节点的父级元素存在，则从其上移除旧节点
         if (isDef(parentElm)) {
           removeVnodes(parentElm, [oldVnode], 0, 0)
         } else if (isDef(oldVnode.tag)) {
+          // 否则视为不存在旧DOM节点，此时如果虚拟节点有标签名
+          // 则调用旧虚拟节点销毁钩子
           invokeDestroyHook(oldVnode)
         }
       }
     }
 
+    // 最后调用新节点的插入钩子
     invokeInsertHook(vnode, insertedVnodeQueue, isInitialPatch)
+    // 返回虚拟节点的真实DOM元素
     return vnode.elm
   }
 }
 ```
 
+`createPatchFunction` 函数内容非常多，但大多数函数都是辅助性的，与节点处理和回调函数钩子相关。大致上了解作用即可。
+
+`patch` 方法的执行首先分了两条路线：
+- 不存在旧虚拟节点直接创建新节点插入到DOM树，这是首次渲染的执行路径，这种情况简单。
+- 存在旧虚拟节点时需进行对比再更新，这种情况比较复杂，其中又要分旧节点是否是真实DOM的情况，是虚拟节点并且与新生成虚拟节点相等（这里的相等是指同样的虚拟根节点，具体可参照sameVnode的代码查看条件）则直接进行对比更新；若是真实节点要先进行到虚拟节点的转换还有与服务器渲染相关的判断，然后再根据得到的结果创建新的DOM节点插入页面，最后还要分情况进行父节点的递归更新和移除旧节点。
+
+`patch` 方法的实现方式是有迹可循的，在这源代码中，可以看出之前划分的 `mount` 和 `update` 的执行流程，但要注意的是，上述的条件判断划分的路线和逻辑上划分的流程是稍有区别的，`mount` 路径其实在代码里体现为 `!oldVnode` 和 `oldVnode` 路线中是真实DOM元素的情况，跨越了两个条件，主要体现在直接调用了 `createElm` 创建并插入新节点，这是因为在渲染时分为有无声明挂载的真实DOM元素两种情况。而 `update` 直接进入的是 `patchVnode` 对比操作。虽然有点绕但是需要分清楚这种区别。然而具体如何实现节点的创建和对比更新还是得继续往里层看，由于这一条路径是讲 `mount` 情况，所以往下先看看与之接续的 `createElm` 函数。
+
 ### `createElm`
+
 ```js 
+// 定义createElm函数，一系列参数主要记住vnode，parentElm
 function createElm (
   vnode,
   insertedVnodeQueue,
@@ -524,6 +563,10 @@ function createElm (
   ownerArray,
   index
 ) {
+  // 如果新虚拟节点存在真实DOM元素和ownerArray，
+  // 则代表它在之前的渲染中用过。
+  // 现在要被用作新节点时有潜在的错误
+  // 所以将它改为从本身克隆的节点
   if (isDef(vnode.elm) && isDef(ownerArray)) {
     // This vnode was used in a previous render!
     // now it's used as a new node, overwriting its elm would cause
@@ -533,15 +576,21 @@ function createElm (
     vnode = ownerArray[index] = cloneVNode(vnode)
   }
 
+  // 设置isRootInsert，为检查过度动画入口
   vnode.isRootInsert = !nested // for transition enter check
+  // 下面判断用于keep-alive组件，若是普通组件则会返回undefined继续往下执行
   if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
     return
   }
 
+  // 获取虚拟节点信息、子节点和标签名称
   const data = vnode.data
   const children = vnode.children
   const tag = vnode.tag
+  // 下面三种情况创建普通节点、注释节点和文字节点
   if (isDef(tag)) {
+    // 具有标签名称，则创建普通节点
+    // 非生产环境简则是否是正确的元素
     if (process.env.NODE_ENV !== 'production') {
       if (data && data.pre) {
         creatingElmInVPre++
@@ -556,11 +605,14 @@ function createElm (
       }
     }
 
+    // 根据ns属性选择创建节点的方式创建节点
     vnode.elm = vnode.ns
       ? nodeOps.createElementNS(vnode.ns, tag)
       : nodeOps.createElement(tag, vnode)
+    // 设置节点的作用域ID
     setScope(vnode)
 
+    // 如果是weex平台，可以根据参数调整节点树插入DOM的具体实现
     /* istanbul ignore if */
     if (__WEEX__) {
       // in Weex, the default insertion order is parent-first.
@@ -581,6 +633,7 @@ function createElm (
         insert(parentElm, vnode.elm, refElm)
       }
     } else {
+      // web平台则先创建子节点插入父级后再一次插入DOM中
       createChildren(vnode, children, insertedVnodeQueue)
       if (isDef(data)) {
         invokeCreateHooks(vnode, insertedVnodeQueue)
@@ -592,15 +645,157 @@ function createElm (
       creatingElmInVPre--
     }
   } else if (isTrue(vnode.isComment)) {
+    // 如果是注释节点，则创建注释节点并插入到DOM中
     vnode.elm = nodeOps.createComment(vnode.text)
     insert(parentElm, vnode.elm, refElm)
   } else {
+    // 如果是文字节点，则创建文字节点并插入到DOM
     vnode.elm = nodeOps.createTextNode(vnode.text)
     insert(parentElm, vnode.elm, refElm)
   }
 }
 ```
 
-创建了虚拟节点对应的DOM元素之后，就会调用 `insert` 方法将它插入到页面DOM树中，最后一步再调用 `removeVnodes` 方法移除掉DOM树中的旧节点。到此为止 `mount` 路径的执行就结束了。
+`createElm` 函数包含了节点的创建和插入两部分，创建了虚拟节点对应的DOM元素之后，就会调用 `insert` 方法将它插入到页面DOM结构中。创建功能在这里遵循DOM的三种节点类型，即元素、注释和文字节点，实际与插入和移除方法一样都是使用了对应的原生方法 ，`nodeops` 对象即是在返回 `patch` 函数时预先导入了的原生DOM操作方法的集合，具体可以在[运行时的处理](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/platforms/web/runtime/node-ops.js)中确认。之前生成的 `vnode` 决定了最终应该生成何种节点，在这个函数中就能够发现，最终生成的真实DOM节点是多么依赖于 `vnode` 所携带的信息，所以说虚拟节点是实现生成真实DOM的基础。
+
+这个流程中最后一步再调用 `removeVnodes` 方法移除掉DOM树中的旧节点，到此为止 `mount` 路径的执行就结束了。
 
 ## `update` 路径的具体实现
+
+根据 `update` 的执行流程，前一部分是由 `watcher` 来响应的，就不再讨论，然后进入 `updateComponent` 流程，直至返回 `patch` 函数都与 `mount` 流程的实现一致，只是要执行不同的分支，整个流程中只有最后一步生成真实DOM的过程有所区别，就是 `patchVnode` 函数的执行。上面已经说过 `update` 流程中最后是要对比新旧节点然后再实现更新，这个功能即由 `patchVnode` 来完成，它的内部调用 `updateChildren` 来完成对比，实现逻辑非常有借鉴性，值得玩味。下面来看看这两个函数， 
+
+```js
+function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
+  if (oldVnode === vnode) {
+    return
+  }
+
+  const elm = vnode.elm = oldVnode.elm
+
+  if (isTrue(oldVnode.isAsyncPlaceholder)) {
+    if (isDef(vnode.asyncFactory.resolved)) {
+      hydrate(oldVnode.elm, vnode, insertedVnodeQueue)
+    } else {
+      vnode.isAsyncPlaceholder = true
+    }
+    return
+  }
+
+  // reuse element for static trees.
+  // note we only do this if the vnode is cloned -
+  // if the new node is not cloned it means the render functions have been
+  // reset by the hot-reload-api and we need to do a proper re-render.
+  if (isTrue(vnode.isStatic) &&
+    isTrue(oldVnode.isStatic) &&
+    vnode.key === oldVnode.key &&
+    (isTrue(vnode.isCloned) || isTrue(vnode.isOnce))
+  ) {
+    vnode.componentInstance = oldVnode.componentInstance
+    return
+  }
+
+  let i
+  const data = vnode.data
+  if (isDef(data) && isDef(i = data.hook) && isDef(i = i.prepatch)) {
+    i(oldVnode, vnode)
+  }
+
+  const oldCh = oldVnode.children
+  const ch = vnode.children
+  if (isDef(data) && isPatchable(vnode)) {
+    for (i = 0; i < cbs.update.length; ++i) cbs.update[i](oldVnode, vnode)
+    if (isDef(i = data.hook) && isDef(i = i.update)) i(oldVnode, vnode)
+  }
+  if (isUndef(vnode.text)) {
+    if (isDef(oldCh) && isDef(ch)) {
+      if (oldCh !== ch) updateChildren(elm, oldCh, ch, insertedVnodeQueue, removeOnly)
+    } else if (isDef(ch)) {
+      if (isDef(oldVnode.text)) nodeOps.setTextContent(elm, '')
+      addVnodes(elm, null, ch, 0, ch.length - 1, insertedVnodeQueue)
+    } else if (isDef(oldCh)) {
+      removeVnodes(elm, oldCh, 0, oldCh.length - 1)
+    } else if (isDef(oldVnode.text)) {
+      nodeOps.setTextContent(elm, '')
+    }
+  } else if (oldVnode.text !== vnode.text) {
+    nodeOps.setTextContent(elm, vnode.text)
+  }
+  if (isDef(data)) {
+    if (isDef(i = data.hook) && isDef(i = i.postpatch)) i(oldVnode, vnode)
+  }
+}
+```
+
+```js
+function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {
+  let oldStartIdx = 0
+  let newStartIdx = 0
+  let oldEndIdx = oldCh.length - 1
+  let oldStartVnode = oldCh[0]
+  let oldEndVnode = oldCh[oldEndIdx]
+  let newEndIdx = newCh.length - 1
+  let newStartVnode = newCh[0]
+  let newEndVnode = newCh[newEndIdx]
+  let oldKeyToIdx, idxInOld, vnodeToMove, refElm
+
+  // removeOnly is a special flag used only by <transition-group>
+  // to ensure removed elements stay in correct relative positions
+  // during leaving transitions
+  const canMove = !removeOnly
+
+  if (process.env.NODE_ENV !== 'production') {
+    checkDuplicateKeys(newCh)
+  }
+
+  while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+    if (isUndef(oldStartVnode)) {
+      oldStartVnode = oldCh[++oldStartIdx] // Vnode has been moved left
+    } else if (isUndef(oldEndVnode)) {
+      oldEndVnode = oldCh[--oldEndIdx]
+    } else if (sameVnode(oldStartVnode, newStartVnode)) {
+      patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue)
+      oldStartVnode = oldCh[++oldStartIdx]
+      newStartVnode = newCh[++newStartIdx]
+    } else if (sameVnode(oldEndVnode, newEndVnode)) {
+      patchVnode(oldEndVnode, newEndVnode, insertedVnodeQueue)
+      oldEndVnode = oldCh[--oldEndIdx]
+      newEndVnode = newCh[--newEndIdx]
+    } else if (sameVnode(oldStartVnode, newEndVnode)) { // Vnode moved right
+      patchVnode(oldStartVnode, newEndVnode, insertedVnodeQueue)
+      canMove && nodeOps.insertBefore(parentElm, oldStartVnode.elm, nodeOps.nextSibling(oldEndVnode.elm))
+      oldStartVnode = oldCh[++oldStartIdx]
+      newEndVnode = newCh[--newEndIdx]
+    } else if (sameVnode(oldEndVnode, newStartVnode)) { // Vnode moved left
+      patchVnode(oldEndVnode, newStartVnode, insertedVnodeQueue)
+      canMove && nodeOps.insertBefore(parentElm, oldEndVnode.elm, oldStartVnode.elm)
+      oldEndVnode = oldCh[--oldEndIdx]
+      newStartVnode = newCh[++newStartIdx]
+    } else {
+      if (isUndef(oldKeyToIdx)) oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx)
+      idxInOld = isDef(newStartVnode.key)
+        ? oldKeyToIdx[newStartVnode.key]
+        : findIdxInOld(newStartVnode, oldCh, oldStartIdx, oldEndIdx)
+      if (isUndef(idxInOld)) { // New element
+        createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx)
+      } else {
+        vnodeToMove = oldCh[idxInOld]
+        if (sameVnode(vnodeToMove, newStartVnode)) {
+          patchVnode(vnodeToMove, newStartVnode, insertedVnodeQueue)
+          oldCh[idxInOld] = undefined
+          canMove && nodeOps.insertBefore(parentElm, vnodeToMove.elm, oldStartVnode.elm)
+        } else {
+          // same key but different element. treat as new element
+          createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx)
+        }
+      }
+      newStartVnode = newCh[++newStartIdx]
+    }
+  }
+  if (oldStartIdx > oldEndIdx) {
+    refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm
+    addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx, insertedVnodeQueue)
+  } else if (newStartIdx > newEndIdx) {
+    removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx)
+  }
+}
+```
