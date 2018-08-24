@@ -6163,9 +6163,11 @@ function createPatchFunction (backend) {
           oldElm._leaveCb ? null : parentElm,
           nodeOps.nextSibling(oldElm)
         );
+        console.log(vnode)
         // console.log(22)
         // update parent placeholder node element, recursively
         if (isDef(vnode.parent)) {
+          console.log(1)
           var ancestor = vnode.parent;
           var patchable = isPatchable(vnode);
           while (ancestor) {
