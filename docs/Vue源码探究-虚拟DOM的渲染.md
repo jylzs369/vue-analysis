@@ -665,13 +665,17 @@ function createElm (
 根据 `update` 的执行流程，前一部分是由 `watcher` 来响应的，就不再讨论，然后进入 `updateComponent` 流程，直至返回 `patch` 函数都与 `mount` 流程的实现一致，只是要执行不同的分支，整个流程中只有最后一步生成真实DOM的过程有所区别，就是 `patchVnode` 函数的执行。上面已经说过 `update` 流程中最后是要对比新旧节点然后再实现更新，这个功能即由 `patchVnode` 来完成，它的内部调用 `updateChildren` 来完成对比，实现逻辑非常有借鉴性，值得玩味。下面来看看这两个函数， 
 
 ```js
+// 定义patchVnode函数，接收四个参数
 function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
+  // 如果新旧虚拟节点相同则结束对比
   if (oldVnode === vnode) {
     return
   }
 
+  // 获取并设置新虚拟节点的真实DOM元素
   const elm = vnode.elm = oldVnode.elm
 
+  // 
   if (isTrue(oldVnode.isAsyncPlaceholder)) {
     if (isDef(vnode.asyncFactory.resolved)) {
       hydrate(oldVnode.elm, vnode, insertedVnodeQueue)
