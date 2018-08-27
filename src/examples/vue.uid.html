@@ -15,8 +15,8 @@
 <body>
   <!-- <div id="component1" :style="{fontSize: '24px'}">{{ msg }} 111</div> -->
   <div id="component2">
+    <p>{{ name }}</p>
     {{ msg }}
-    {{ name }}
     <!-- <msg></msg> -->
   </div>
   <!-- <username>萨达萨达</username> -->
@@ -73,14 +73,12 @@
       },
       mounted() {
         console.log('mounted')
-        console.log(this)
       },
       beforeUpdate() {
         // console.log('beforeUpdate')
       },
       updated() {
         console.log('updated')
-        console.log(this)
       },
       beforeDestroy() {
         console.log('before destroy')
