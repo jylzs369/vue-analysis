@@ -664,6 +664,8 @@ function createElm (
 
 根据 `update` 的执行流程，前一部分是由 `watcher` 来响应的，就不再讨论，然后进入 `updateComponent` 流程，直至返回 `patch` 函数都与 `mount` 流程的实现一致，只是要执行不同的分支，整个流程中只有最后一步生成真实DOM的过程有所区别，就是 `patchVnode` 函数的执行。上面已经说过 `update` 流程中最后是要对比新旧节点然后再实现更新，这个功能即由 `patchVnode` 来完成，它的内部调用 `updateChildren` 来完成对比，实现逻辑非常有借鉴性，值得玩味。下面来看看这两个函数， 
 
+### patchVnode
+
 ```js
 // 定义patchVnode函数，接收四个参数
 function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
@@ -675,7 +677,7 @@ function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
   // 获取并设置新虚拟节点的真实DOM元素
   const elm = vnode.elm = oldVnode.elm
 
-  // 
+  // 异步占位符节点的特殊处理
   if (isTrue(oldVnode.isAsyncPlaceholder)) {
     if (isDef(vnode.asyncFactory.resolved)) {
       hydrate(oldVnode.elm, vnode, insertedVnodeQueue)
@@ -685,6 +687,8 @@ function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
     return
   }
 
+  // 为静态树重用元素
+  // 只在克隆虚拟节点时使用，如非克隆节点则需要重新渲染
   // reuse element for static trees.
   // note we only do this if the vnode is cloned -
   // if the new node is not cloned it means the render functions have been
@@ -698,108 +702,184 @@ function patchVnode (oldVnode, vnode, insertedVnodeQueue, removeOnly) {
     return
   }
 
+  // 如果存在内联预处理钩子则调用
   let i
   const data = vnode.data
   if (isDef(data) && isDef(i = data.hook) && isDef(i = i.prepatch)) {
     i(oldVnode, vnode)
   }
 
+  // 下面是对一般情况的DOM更新处理
+  // 获取虚拟节点子节点
   const oldCh = oldVnode.children
   const ch = vnode.children
+  // 如果存在更新钩子则调用
   if (isDef(data) && isPatchable(vnode)) {
     for (i = 0; i < cbs.update.length; ++i) cbs.update[i](oldVnode, vnode)
     if (isDef(i = data.hook) && isDef(i = i.update)) i(oldVnode, vnode)
   }
+  // 当新虚拟节点不存在text属性值，即不是文字节点时
   if (isUndef(vnode.text)) {
+    // 情况一：新旧虚拟节点子节点都存在时
     if (isDef(oldCh) && isDef(ch)) {
+      // 不相等则更新子节点树
       if (oldCh !== ch) updateChildren(elm, oldCh, ch, insertedVnodeQueue, removeOnly)
     } else if (isDef(ch)) {
+      // 情况二，只有新虚拟节点子节点存在，
+      // 旧虚拟节点是文字节点，先置空元素文本内容
       if (isDef(oldVnode.text)) nodeOps.setTextContent(elm, '')
+      // 再向DOM元素插入新虚拟节点内容
       addVnodes(elm, null, ch, 0, ch.length - 1, insertedVnodeQueue)
     } else if (isDef(oldCh)) {
+      // 情况三，只有旧虚拟节点子节点存在，则移除DOM元素内容
       removeVnodes(elm, oldCh, 0, oldCh.length - 1)
     } else if (isDef(oldVnode.text)) {
+      // 情况四，新旧虚拟节点子节点不存在且旧虚拟节点是文字节点
+      // 置空DOM元素文本内容
       nodeOps.setTextContent(elm, '')
     }
   } else if (oldVnode.text !== vnode.text) {
+    // 新虚拟节点是文字节点时，除非旧节点也是文字节点且内容相等
+    // 直接将新文本内容设置到DOM元素中
     nodeOps.setTextContent(elm, vnode.text)
   }
+  // 如果存在后处理钩子则调用
   if (isDef(data)) {
     if (isDef(i = data.hook) && isDef(i = i.postpatch)) i(oldVnode, vnode)
   }
 }
 ```
 
+`patchVnode` 的内容主要有三点，第一是处理异步虚拟节点；第二是处理静态可重用元素；第三是处理一般情况下的新旧节点更新。
+
+一般情况下的新旧节点更新首先是按照新虚拟节点是否文字节点来分情况，因为DOM的更新决定权在于新的虚拟节点内容，如果是新节点是文字节点，则可以不用在意旧节点的情况，除非旧节点也是文本内容且内容无异时不需要处理，其他情况下都直接为DOM元素内容重置为新虚拟节点的文本。如果新节点不是文字节点，处理会再细分为四种情况：第一是新旧虚拟子节点都存在且不相等时，执行patch核心的更新操作 `updateChildren`。第二是只有新子节点存在而旧子节点不存在，如果旧节点是文字节点，先要置空就节点的文本内容，再向DOM元素添加新字节点的内容。第三是只有旧子节点存在而新子节点不存在时，说明更新后没有节点了，执行移除操作。第四是新旧子节点不存在而旧节点是文字节点时，清空DOM元素的文本内容。
+
+这里要十分注意理清虚拟节点和其子节点的比较。只有当新旧虚拟节点与其各自子虚拟节点都存储的是元素节点时，才需要调用 `updateChildren` 函数来进行深入比较，其他的情况都可以比较简便的处理DOM节点的更新，这也避免了不必要的处理提高了渲染的性能。
+
+最后来看看整个DOM节点对比更新的核心逻辑函数：
+
+### updateChildren
+
 ```js
+// 定义updateChildren函数，接受5个参数
 function updateChildren (parentElm, oldCh, newCh, insertedVnodeQueue, removeOnly) {
-  let oldStartIdx = 0
-  let newStartIdx = 0
-  let oldEndIdx = oldCh.length - 1
-  let oldStartVnode = oldCh[0]
-  let oldEndVnode = oldCh[oldEndIdx]
-  let newEndIdx = newCh.length - 1
-  let newStartVnode = newCh[0]
-  let newEndVnode = newCh[newEndIdx]
+  // 初始化逻辑需要的变量，由于此函数仅针对子节点，所以以下省略“子”字
+  let oldStartIdx = 0 // 旧节点开始索引
+  let newStartIdx = 0 // 新节点开始索引
+  let oldEndIdx = oldCh.length - 1 // 旧节点结束索引
+  let oldStartVnode = oldCh[0] // 当前旧首节点
+  let oldEndVnode = oldCh[oldEndIdx] // 当前旧尾节点
+  let newEndIdx = newCh.length - 1 // 新节点结束索引
+  let newStartVnode = newCh[0] // 当前新首节点
+  let newEndVnode = newCh[newEndIdx] // 当前新尾节点
   let oldKeyToIdx, idxInOld, vnodeToMove, refElm
 
+  // removeOnly是仅用于<transition-group>情况下的特殊标识，
+  // 确保移除的元素在离开过渡期间保持在正确的相对位置。
   // removeOnly is a special flag used only by <transition-group>
   // to ensure removed elements stay in correct relative positions
   // during leaving transitions
   const canMove = !removeOnly
 
+  // 检查新节点中有无重复key
   if (process.env.NODE_ENV !== 'production') {
     checkDuplicateKeys(newCh)
   }
 
+  // 以增加索引值模拟移动指针，逐一对比对应索引位置的节点
+  // 循环仅在在新旧开始索引同时小于各自结束索引时才继续进行
   while (oldStartIdx <= oldEndIdx && newStartIdx <= newEndIdx) {
+    // 对比具体分为7种情况：
     if (isUndef(oldStartVnode)) {
+      // 当前旧首节点不存在时，递增旧开始索引指向后一节点
       oldStartVnode = oldCh[++oldStartIdx] // Vnode has been moved left
     } else if (isUndef(oldEndVnode)) {
+      // 当前旧尾节点不存在时，递减旧结束索引指向前一节点
       oldEndVnode = oldCh[--oldEndIdx]
     } else if (sameVnode(oldStartVnode, newStartVnode)) {
+      // 当前新旧首节点相同，递归调用patchVnode对比子级
       patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue)
+      // 递增新旧开始索引，当前新旧节点指向各自后一节点
       oldStartVnode = oldCh[++oldStartIdx]
       newStartVnode = newCh[++newStartIdx]
     } else if (sameVnode(oldEndVnode, newEndVnode)) {
+      // 当前新旧尾节点相同，递归调用patchVnode对比子级
       patchVnode(oldEndVnode, newEndVnode, insertedVnodeQueue)
+      // 递减新旧结束索引，当前新旧尾节点指向前一节点
       oldEndVnode = oldCh[--oldEndIdx]
       newEndVnode = newCh[--newEndIdx]
     } else if (sameVnode(oldStartVnode, newEndVnode)) { // Vnode moved right
+      // 当前旧首节点与当前新尾节点相同，递归调用patchVnode对比
       patchVnode(oldStartVnode, newEndVnode, insertedVnodeQueue)
+      // canMove为真则将当前旧首节点移动到下一兄弟节点前
       canMove && nodeOps.insertBefore(parentElm, oldStartVnode.elm, nodeOps.nextSibling(oldEndVnode.elm))
+      // 递增就开始索引，当前旧首节点指向后一节点
       oldStartVnode = oldCh[++oldStartIdx]
+      // 递减新结束索引，当前新尾节点指向前一节点
       newEndVnode = newCh[--newEndIdx]
     } else if (sameVnode(oldEndVnode, newStartVnode)) { // Vnode moved left
+      // 当前旧尾节点与当前新首节点相同，调用patchVnode
       patchVnode(oldEndVnode, newStartVnode, insertedVnodeQueue)
+      // canMove为真则将当前旧尾节点移动到当前旧首节点前
       canMove && nodeOps.insertBefore(parentElm, oldEndVnode.elm, oldStartVnode.elm)
+      // 递减旧节点结束索引，当前旧尾节点指向前一节点
       oldEndVnode = oldCh[--oldEndIdx]
+      // 递增新节点开始索引，当前新首节点指向后一节点
       newStartVnode = newCh[++newStartIdx]
     } else {
+      // 其他情况下
+      // oldKeyToIdx未定义时根据旧节点创建key和索引键值对集合
       if (isUndef(oldKeyToIdx)) oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx)
+      // 如果当前新首节点的key存在，则idxInOld等于oldKeyToIdx中对应key的索引
+      // 否则寻找旧节点数组中与当前新首节点相同的节点索引赋予idxInOld
       idxInOld = isDef(newStartVnode.key)
         ? oldKeyToIdx[newStartVnode.key]
         : findIdxInOld(newStartVnode, oldCh, oldStartIdx, oldEndIdx)
+      //  如果idxInOld不存在，则说明当前对比的新节点是新增节点
       if (isUndef(idxInOld)) { // New element
+        // 创建新节点插入到父级对应位置
         createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx)
       } else {
+        // 在旧节点数组中找到了相应的节点的索引时
+        // 将vnodeToMove赋值为相应的节点
         vnodeToMove = oldCh[idxInOld]
+        // 对比此节点和当前新首节点
         if (sameVnode(vnodeToMove, newStartVnode)) {
+          // 如果相同，则继续对比子级
           patchVnode(vnodeToMove, newStartVnode, insertedVnodeQueue)
+          // 将旧节点数组中的该节点设置为undefined
           oldCh[idxInOld] = undefined
+          // 移动找到的节点到当前旧首节点之前
           canMove && nodeOps.insertBefore(parentElm, vnodeToMove.elm, oldStartVnode.elm)
         } else {
+          // 如不同，则说明虽然key相同，但是不同元素，当作新元素处理
           // same key but different element. treat as new element
+          // 创建新元素闯入父级相应位置
           createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm, false, newCh, newStartIdx)
         }
       }
+      // 递增新节点开始索引，当前新首节点指向下一节点
       newStartVnode = newCh[++newStartIdx]
     }
   }
+  // 新旧节点开始索引任一方大于其结束索引时结束循环
+  // 当旧节点开始索引大于旧节点结束索引时
   if (oldStartIdx > oldEndIdx) {
+    // 判断新节点数组中newEndIdx索引后的节点是否存在，若不存在refElm为null
+    // 若存在则refElm为相应节点的elm值
     refElm = isUndef(newCh[newEndIdx + 1]) ? null : newCh[newEndIdx + 1].elm
+    // 向父节点相应位置添加该节点
     addVnodes(parentElm, refElm, newCh, newStartIdx, newEndIdx, insertedVnodeQueue)
   } else if (newStartIdx > newEndIdx) {
+    // 当新节点开始索引大于新节点结束索引时
+    // 在父级中移除未处理的剩余旧节点，范围是oldStartIdx~oldEndIdx
     removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx)
   }
 }
 ```
+
+`updateChildren` 函数的主要逻辑是利用索引来替换当前节点的引用，有如模拟指针移动指向的对象，来逐一进行对比，并且是递归进行的。指针移动的基准是参照新节点，条件满足下，根据当前的新节点来寻找旧节点中对应的节点，如果相等会递归进入子级，如果不相等当作新增节点处理，在处理之后会移动到下一个节点，继续新一轮的对比。在旧节点数组中将对比过的节点设置成 `undefined` 标志节点已处理过，避免了以后的多余对比。这里的处理逻辑是相当巧妙的，这就是节点对比更新的最基础的实现。
+
+---
+
+终于把我认为Vue最核心的另一个主要功能给攻略了下来，真是激动人心。比起数据绑定，这一部分的实现也着实不简单，光是处理流就让人凌乱不堪。`patch` 所实际对应的 `createPatchFunction` 函数是这一模块的重中之重，理顺了更新渲染的流程，继而理解了这一函数的具体实现后，基本上能对Vue的渲染功能有了一定深度的把握。
