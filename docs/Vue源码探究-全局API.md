@@ -1,4 +1,4 @@
-  # Vue源码探究-全局API
+# Vue源码探究-全局API
 
 *本篇代码位于[vue/src/core/global-api/](https://github.com/vuejs/vue/tree/v2.5.17-beta.0/src/core/global-api)*
 
@@ -358,4 +358,3 @@ export function initAssetRegisters (Vue: GlobalAPI) {
 ---
 
 全局API的细节大概就是以上这些，对于经常使用的方式，了解其具体实现可以帮助我们在应用时避免出现不必要的错误，对于不经常使用的方法，在探索其实现时可以学习它们的实现原理和良好的方式。重要是在实践中分清楚每一个方法的使用场景，选取最恰当的方式实现功能。
-
