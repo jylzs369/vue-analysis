@@ -1,4 +1,5 @@
 # Vue源码探究-组件的持久活跃
+
 *本篇代码位于[vue/src/core/components/keep-alive.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/core/components/keep-alive.js)
 
 较新版本的Vue增加了一个内置组件 `keep-alive`，用于存储组件状态，即便失活也能保持现有状态不变，切换回来的时候不会恢复到初始状态。由此可知，路由切换的钩子所触发的事件处理是无法适用于 `keep-alive` 组件的，那如果需要根据失活与否来给予组件事件通知，该怎么办呢？如前篇所述，`keep-alive` 组件有两个特有的生命周期钩子 `activated` 和 `deactivated`，用来响应失活状态的事件处理。
