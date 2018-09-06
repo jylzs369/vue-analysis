@@ -53,6 +53,294 @@ export const createCompiler = createCompilerCreator(function baseCompile (
 
 ## parse
 
+*以下代码位于[src/compiler/parse/index.js](https://github.com/vuejs/vue/blob/v2.5.17-beta.0/src/compiler/index.js)*
+
+从名称就可知这一功能是解析使用Vue语法写成的模板。这一功能的目的是生成抽象节点数据，为了提供给Vue的内部的机制来使用，完成诸如数据绑定、生命周期等功能的实现。`parse` 模块也有自己的入口文件，其余的模块是针对性的具体解析器的实现，包括实体解码 `enity-decoder`、过滤器解析 `filter-parser`、html解析 `html-parser`、文字解析 `text-parser` 四个小模块。`parse` 的入口文件将这四个模块功能集中而成一个综合性的模板解析器。
+
+首先来看看 `parse` 的入口文件。如预期一样，这一部分需要对输入的Vue模板语法进行解析，所以这段代码的最开始便定义了需要解析的语法的模式匹配正则表达式。除了引入模块解析器、辅助函数之外，整个代码分为两大部分，第一部分是定义语法解析匹配的正则表达式、配置状态和一系列函数，第二部分是解析器的实现。
+
+```js
+// 定义模板语法匹配正则表达式
+export const onRE = /^@|^v-on:/
+export const dirRE = /^v-|^@|^:/
+export const forAliasRE = /([^]*?)\s+(?:in|of)\s+([^]*)/
+export const forIteratorRE = /,([^,\}\]]*)(?:,([^,\}\]]*))?$/
+const stripParensRE = /^\(|\)$/g
+
+const argRE = /:(.*)$/
+export const bindRE = /^:|^v-bind:/
+const modifierRE = /\.[^.]+/g
+
+// 配置状态
+// configurable state
+export let warn: any
+let delimiters
+let transforms
+let preTransforms
+let postTransforms
+let platformIsPreTag
+let platformMustUseProp
+let platformGetTagNamespace
+
+type Attr = { name: string; value: string };
+
+// 定义并导出createASTElement函数
+// 接收标签名称，属性列表，父级抽象元素三个参数
+export function createASTElement (
+  tag: string,
+  attrs: Array<Attr>,
+  parent: ASTElement | void
+): ASTElement {
+  // 返回格式化的抽象元素，作为真实DOM的信息载体
+  return {
+    type: 1,
+    tag,
+    attrsList: attrs,
+    attrsMap: makeAttrsMap(attrs),
+    parent,
+    children: []
+  }
+}
+```
+
+第一部分的是解析器实现的准备步骤，如上述代码片段可看到，与我们平时常用的模板语法匹配的正则表达式全都被定义在里面了，定义的状态变量有具体还不清楚，只能靠名字猜测一番，多数与核心逻辑似乎无关。最后的 `createASTElement` 函数用于具体生成抽象元素对象。其余辅助函数位于 `parse` 函数之后，数量众多，不全展开，先来解析器的具体实现逻辑：
+
+```js
+
+/**
+ * Convert HTML string to AST.
+ */
+export function parse (
+  template: string,
+  options: CompilerOptions
+): ASTElement | void {
+  warn = options.warn || baseWarn
+
+  platformIsPreTag = options.isPreTag || no
+  platformMustUseProp = options.mustUseProp || no
+  platformGetTagNamespace = options.getTagNamespace || no
+
+  transforms = pluckModuleFunction(options.modules, 'transformNode')
+  preTransforms = pluckModuleFunction(options.modules, 'preTransformNode')
+  postTransforms = pluckModuleFunction(options.modules, 'postTransformNode')
+
+  delimiters = options.delimiters
+
+  const stack = []
+  const preserveWhitespace = options.preserveWhitespace !== false
+  let root
+  let currentParent
+  let inVPre = false
+  let inPre = false
+  let warned = false
+
+  function warnOnce (msg) {
+    if (!warned) {
+      warned = true
+      warn(msg)
+    }
+  }
+
+  function closeElement (element) {
+    // check pre state
+    if (element.pre) {
+      inVPre = false
+    }
+    if (platformIsPreTag(element.tag)) {
+      inPre = false
+    }
+    // apply post-transforms
+    for (let i = 0; i < postTransforms.length; i++) {
+      postTransforms[i](element, options)
+    }
+  }
+
+  parseHTML(template, {
+    warn,
+    expectHTML: options.expectHTML,
+    isUnaryTag: options.isUnaryTag,
+    canBeLeftOpenTag: options.canBeLeftOpenTag,
+    shouldDecodeNewlines: options.shouldDecodeNewlines,
+    shouldDecodeNewlinesForHref: options.shouldDecodeNewlinesForHref,
+    shouldKeepComment: options.comments,
+    start (tag, attrs, unary) {
+      // check namespace.
+      // inherit parent ns if there is one
+      const ns = (currentParent && currentParent.ns) || platformGetTagNamespace(tag)
+
+      // handle IE svg bug
+      /* istanbul ignore if */
+      if (isIE && ns === 'svg') {
+        attrs = guardIESVGBug(attrs)
+      }
+
+      let element: ASTElement = createASTElement(tag, attrs, currentParent)
+      if (ns) {
+        element.ns = ns
+      }
+
+      if (isForbiddenTag(element) && !isServerRendering()) {
+        element.forbidden = true
+        process.env.NODE_ENV !== 'production' && warn(
+          'Templates should only be responsible for mapping the state to the ' +
+          'UI. Avoid placing tags with side-effects in your templates, such as ' +
+          `<${tag}>` + ', as they will not be parsed.'
+        )
+      }
+
+      // apply pre-transforms
+      for (let i = 0; i < preTransforms.length; i++) {
+        element = preTransforms[i](element, options) || element
+      }
+
+      if (!inVPre) {
+        processPre(element)
+        if (element.pre) {
+          inVPre = true
+        }
+      }
+      if (platformIsPreTag(element.tag)) {
+        inPre = true
+      }
+      if (inVPre) {
+        processRawAttrs(element)
+      } else if (!element.processed) {
+        // structural directives
+        processFor(element)
+        processIf(element)
+        processOnce(element)
+        // element-scope stuff
+        processElement(element, options)
+      }
+
+      function checkRootConstraints (el) {
+        if (process.env.NODE_ENV !== 'production') {
+          if (el.tag === 'slot' || el.tag === 'template') {
+            warnOnce(
+              `Cannot use <${el.tag}> as component root element because it may ` +
+              'contain multiple nodes.'
+            )
+          }
+          if (el.attrsMap.hasOwnProperty('v-for')) {
+            warnOnce(
+              'Cannot use v-for on stateful component root element because ' +
+              'it renders multiple elements.'
+            )
+          }
+        }
+      }
+
+      // tree management
+      if (!root) {
+        root = element
+        checkRootConstraints(root)
+      } else if (!stack.length) {
+        // allow root elements with v-if, v-else-if and v-else
+        if (root.if && (element.elseif || element.else)) {
+          checkRootConstraints(element)
+          addIfCondition(root, {
+            exp: element.elseif,
+            block: element
+          })
+        } else if (process.env.NODE_ENV !== 'production') {
+          warnOnce(
+            `Component template should contain exactly one root element. ` +
+            `If you are using v-if on multiple elements, ` +
+            `use v-else-if to chain them instead.`
+          )
+        }
+      }
+      if (currentParent && !element.forbidden) {
+        if (element.elseif || element.else) {
+          processIfConditions(element, currentParent)
+        } else if (element.slotScope) { // scoped slot
+          currentParent.plain = false
+          const name = element.slotTarget || '"default"'
+          ;(currentParent.scopedSlots || (currentParent.scopedSlots = {}))[name] = element
+        } else {
+          currentParent.children.push(element)
+          element.parent = currentParent
+        }
+      }
+      if (!unary) {
+        currentParent = element
+        stack.push(element)
+      } else {
+        closeElement(element)
+      }
+    },
+
+    end () {
+      // remove trailing whitespace
+      const element = stack[stack.length - 1]
+      const lastNode = element.children[element.children.length - 1]
+      if (lastNode && lastNode.type === 3 && lastNode.text === ' ' && !inPre) {
+        element.children.pop()
+      }
+      // pop stack
+      stack.length -= 1
+      currentParent = stack[stack.length - 1]
+      closeElement(element)
+    },
+
+    chars (text: string) {
+      if (!currentParent) {
+        if (process.env.NODE_ENV !== 'production') {
+          if (text === template) {
+            warnOnce(
+              'Component template requires a root element, rather than just text.'
+            )
+          } else if ((text = text.trim())) {
+            warnOnce(
+              `text "${text}" outside root element will be ignored.`
+            )
+          }
+        }
+        return
+      }
+      // IE textarea placeholder bug
+      /* istanbul ignore if */
+      if (isIE &&
+        currentParent.tag === 'textarea' &&
+        currentParent.attrsMap.placeholder === text
+      ) {
+        return
+      }
+      const children = currentParent.children
+      text = inPre || text.trim()
+        ? isTextTag(currentParent) ? text : decodeHTMLCached(text)
+        // only preserve whitespace if its not right after a starting tag
+        : preserveWhitespace && children.length ? ' ' : ''
+      if (text) {
+        let res
+        if (!inVPre && text !== ' ' && (res = parseText(text, delimiters))) {
+          children.push({
+            type: 2,
+            expression: res.expression,
+            tokens: res.tokens,
+            text
+          })
+        } else if (text !== ' ' || !children.length || children[children.length - 1].text !== ' ') {
+          children.push({
+            type: 3,
+            text
+          })
+        }
+      }
+    },
+    comment (text: string) {
+      currentParent.children.push({
+        type: 3,
+        text,
+        isComment: true
+      })
+    }
+  })
+  return root
+}
+
+```
+
 
 ## codegen
 
