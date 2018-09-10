@@ -427,8 +427,361 @@ export function parse (
 }
 ```
 
-从解析器函数里可以一窥解析模板的大致流程，在生成抽象语法树对象的根本目标下，重点进行了模板指令的处理和抽象节点树的构建。在其中分为
+从解析器函数里可以一窥解析模板的大致流程，在生成抽象语法树对象的根本目标下，重点进行了模板指令的处理和抽象节点树的构建。在其中分为普通元素节点、文本节点和注释节点的抽象处理，分别对应了`start` 和 `end` 处理元素节点、`char` 处理文本节点、`comment` 处理注释节点。这个函数会将准备好的参数和方法一并传入 `parseHtml` 函数做进一步的抽象实现，上述传入时定义的方法也会随之传入，应用相应类别的解析器处理模板。接着来从最先调用的 `parseHtml` 解析器来看看各个细分化了的解析器函数。
 
+### parseHtml
+
+```js
+
+export function parseHTML (html, options) {
+  const stack = []
+  const expectHTML = options.expectHTML
+  const isUnaryTag = options.isUnaryTag || no
+  const canBeLeftOpenTag = options.canBeLeftOpenTag || no
+  let index = 0
+  let last, lastTag
+  while (html) {
+    last = html
+    // Make sure we're not in a plaintext content element like script/style
+    if (!lastTag || !isPlainTextElement(lastTag)) {
+      let textEnd = html.indexOf('<')
+      if (textEnd === 0) {
+        // Comment:
+        if (comment.test(html)) {
+          const commentEnd = html.indexOf('-->')
+
+          if (commentEnd >= 0) {
+            if (options.shouldKeepComment) {
+              options.comment(html.substring(4, commentEnd))
+            }
+            advance(commentEnd + 3)
+            continue
+          }
+        }
+
+        // http://en.wikipedia.org/wiki/Conditional_comment#Downlevel-revealed_conditional_comment
+        if (conditionalComment.test(html)) {
+          const conditionalEnd = html.indexOf(']>')
+
+          if (conditionalEnd >= 0) {
+            advance(conditionalEnd + 2)
+            continue
+          }
+        }
+
+        // Doctype:
+        const doctypeMatch = html.match(doctype)
+        if (doctypeMatch) {
+          advance(doctypeMatch[0].length)
+          continue
+        }
+
+        // End tag:
+        const endTagMatch = html.match(endTag)
+        if (endTagMatch) {
+          const curIndex = index
+          advance(endTagMatch[0].length)
+          parseEndTag(endTagMatch[1], curIndex, index)
+          continue
+        }
+
+        // Start tag:
+        const startTagMatch = parseStartTag()
+        if (startTagMatch) {
+          handleStartTag(startTagMatch)
+          if (shouldIgnoreFirstNewline(lastTag, html)) {
+            advance(1)
+          }
+          continue
+        }
+      }
+
+      let text, rest, next
+      if (textEnd >= 0) {
+        rest = html.slice(textEnd)
+        while (
+          !endTag.test(rest) &&
+          !startTagOpen.test(rest) &&
+          !comment.test(rest) &&
+          !conditionalComment.test(rest)
+        ) {
+          // < in plain text, be forgiving and treat it as text
+          next = rest.indexOf('<', 1)
+          if (next < 0) break
+          textEnd += next
+          rest = html.slice(textEnd)
+        }
+        text = html.substring(0, textEnd)
+        advance(textEnd)
+      }
+
+      if (textEnd < 0) {
+        text = html
+        html = ''
+      }
+
+      if (options.chars && text) {
+        options.chars(text)
+      }
+    } else {
+      let endTagLength = 0
+      const stackedTag = lastTag.toLowerCase()
+      const reStackedTag = reCache[stackedTag] || (reCache[stackedTag] = new RegExp('([\\s\\S]*?)(</' + stackedTag + '[^>]*>)', 'i'))
+      const rest = html.replace(reStackedTag, function (all, text, endTag) {
+        endTagLength = endTag.length
+        if (!isPlainTextElement(stackedTag) && stackedTag !== 'noscript') {
+          text = text
+            .replace(/<!\--([\s\S]*?)-->/g, '$1') // #7298
+            .replace(/<!\[CDATA\[([\s\S]*?)]]>/g, '$1')
+        }
+        if (shouldIgnoreFirstNewline(stackedTag, text)) {
+          text = text.slice(1)
+        }
+        if (options.chars) {
+          options.chars(text)
+        }
+        return ''
+      })
+      index += html.length - rest.length
+      html = rest
+      parseEndTag(stackedTag, index - endTagLength, index)
+    }
+
+    if (html === last) {
+      options.chars && options.chars(html)
+      if (process.env.NODE_ENV !== 'production' && !stack.length && options.warn) {
+        options.warn(`Mal-formatted tag at end of template: "${html}"`)
+      }
+      break
+    }
+  }
+
+  // Clean up any remaining tags
+  parseEndTag()
+
+  // 定义辅助函数
+  ...
+}
+```
+
+### parseText
+
+```js
+// 定义默认正则表达式
+const defaultTagRE = /\{\{((?:.|\n)+?)\}\}/g
+const regexEscapeRE = /[-.*+?^${}()|[\]\/\\]/g
+
+// 完整构建版本中修改分隔符后，依照新分隔符重新定义的文本匹配正则表达式
+const buildRegex = cached(delimiters => {
+  const open = delimiters[0].replace(regexEscapeRE, '\\$&')
+  const close = delimiters[1].replace(regexEscapeRE, '\\$&')
+  return new RegExp(open + '((?:.|\\n)+?)' + close, 'g')
+})
+
+// 定义TextParseResult类型的字符解析结果对象
+type TextParseResult = {
+  expression: string,
+  tokens: Array<string | { '@binding': string }>
+}
+
+// 定义并导出parseText函数，接受字符串和分隔符两个参数
+// 返回TextParseResult类型的结果
+export function parseText (
+  text: string,
+  delimiters?: [string, string]
+): TextParseResult | void {
+  // 根据delimiters是否传入选择解析文本模板的正则表达式
+  // 未传入时采用默认的分隔符，使用默认正则表达式
+  // 独立构建时可以修改模板的分割符，传入新分隔符后创建新正则表达式
+  const tagRE = delimiters ? buildRegex(delimiters) : defaultTagRE
+  // 传入的文本不匹配则返回
+  if (!tagRE.test(text)) {
+    return
+  }
+  // 定义tokens数组
+  const tokens = []
+  const rawTokens = []
+  // 获取上一次匹配索引
+  let lastIndex = tagRE.lastIndex = 0
+  // 定义变量
+  let match, index, tokenValue
+  // 使用正则表达式检验字符串匹配，将当前匹配对象赋值给match
+  while ((match = tagRE.exec(text))) {
+    // 获取当前匹配字符索引
+    index = match.index
+    // 添加文本token
+    // push text token
+    // 当前匹配字符索引大于上一匹配索引时
+    if (index > lastIndex) {
+      // 添加该匹配字符到rawTokens，字符串化后添加到tokens中
+      rawTokens.push(tokenValue = text.slice(lastIndex, index))
+      tokens.push(JSON.stringify(tokenValue))
+    }
+    // 标签token
+    // tag token
+    // 匹配过滤器表达式
+    const exp = parseFilters(match[1].trim())
+    // 添加格式化后的匹配表达式到tokens中
+    tokens.push(`_s(${exp})`)
+    rawTokens.push({ '@binding': exp })
+    // 重置上一次匹配符索索引，开始下一次匹配
+    lastIndex = index + match[0].length
+  }
+  // 逐步检验文本完成后，如果上一次匹配字符索引小于传入字符串长度
+  // 即存在剩余未匹配的字符
+  if (lastIndex < text.length) {
+    // 将剩余未匹配字符添加到rawTokens、字符串化后添加到tokens中
+    rawTokens.push(tokenValue = text.slice(lastIndex))
+    tokens.push(JSON.stringify(tokenValue))
+  }
+  // 返回格式化的字符串解析结果对象
+  return {
+    expression: tokens.join('+'),
+    tokens: rawTokens
+  }
+}
+```
+
+除去正则匹配的细节，解析字符串的目的很清晰，是要将符合模板字符串的内容转换成格式化的对象。至于这个对象怎么用，乃是之后要做的事情。在这个实现中，还可以看到Vue对于修改模板字符串的支持。
+
+### parseFilter
+
+```js
+// 定义正则表达式
+const validDivisionCharRE = /[\w).+\-_$\]]/
+
+// 定义并导出parseFilters函数，传入过滤表达式
+export function parseFilters (exp: string): string {
+  // 初始化变量
+  let inSingle = false
+  let inDouble = false
+  let inTemplateString = false
+  let inRegex = false
+  let curly = 0
+  let square = 0
+  let paren = 0
+  let lastFilterIndex = 0
+  let c, prev, i, expression, filters
+
+  // 遍历过滤表达式字符串
+  for (i = 0; i < exp.length; i++) {
+    // 设置前一字符
+    prev = c
+    // 获取当前字符
+    c = exp.charCodeAt(i)
+    // 单引号标识
+    if (inSingle) {
+      // 当字符c为'且前一符号不为\，设置inSingle为false
+      if (c === 0x27 && prev !== 0x5C) inSingle = false
+    } else if (inDouble) { // 双引号标识
+      // 当字符为”且前一符号不为\，设置inDouble为false
+      if (c === 0x22 && prev !== 0x5C) inDouble = false
+    } else if (inTemplateString) { // 模板字符串标识
+      // 当字符为`，且前一符号不为\，设置inTemplateString为false
+      if (c === 0x60 && prev !== 0x5C) inTemplateString = false
+    } else if (inRegex) { // 正则标识
+      // 当字符为/，且前一符号不为\，设置inRegex为false
+      if (c === 0x2f && prev !== 0x5C) inRegex = false
+    } else if (
+      // 当字符为|，前后字符不为|且curly、square、paren标识均为false
+      c === 0x7C && // pipe
+      exp.charCodeAt(i + 1) !== 0x7C &&
+      exp.charCodeAt(i - 1) !== 0x7C &&
+      !curly && !square && !paren
+    ) {
+      // 如果expression未定义
+      if (expression === undefined) {
+        // 即此时是第一个过滤器情况下，结束表达
+        // first filter, end of expression
+        // 最后过滤器索引加1
+        lastFilterIndex = i + 1
+        // 截取表达式并却出空格
+        expression = exp.slice(0, i).trim()
+      } else {
+        // 添加过滤器到filter数组中
+        pushFilter()
+      }
+    } else {
+      // 若不符合以上情况则根据匹配以下字符，处理各标识变量
+      switch (c) {
+        case 0x22: inDouble = true; break         // "
+        case 0x27: inSingle = true; break         // '
+        case 0x60: inTemplateString = true; break // `
+        case 0x28: paren++; break                 // (
+        case 0x29: paren--; break                 // )
+        case 0x5B: square++; break                // [
+        case 0x5D: square--; break                // ]
+        case 0x7B: curly++; break                 // {
+        case 0x7D: curly--; break                 // }
+      }
+      // 如果字符是/
+      if (c === 0x2f) { // /
+        let j = i - 1
+        let p
+        // 寻找前面第一个非空字符
+        // find first non-whitespace prev char
+        for (; j >= 0; j--) {
+          p = exp.charAt(j)
+          if (p !== ' ') break
+        }
+        // 如果前面不存在非空字符或者匹配有效分割字符失败
+        if (!p || !validDivisionCharRE.test(p)) {
+          // 设置inRegex标识
+          inRegex = true
+        }
+      }
+    }
+  }
+
+  // 表达式未定义时
+  if (expression === undefined) {
+    // 截取表达式片段，并去除空格
+    expression = exp.slice(0, i).trim()
+  } else if (lastFilterIndex !== 0) {
+    // 如存在表达式，且最后一个过滤器索引不为0
+    // 则添加表达式到filter中
+    pushFilter()
+  }
+
+  // 定义pushFilter函数
+  function pushFilter () {
+    // 向filter数组中添加截取的表达式片段
+    (filters || (filters = [])).push(exp.slice(lastFilterIndex, i).trim())
+    // 递增lastFilterIndex
+    lastFilterIndex = i + 1
+  }
+
+  // filters存在时遍历filters
+  if (filters) {
+    for (i = 0; i < filters.length; i++) {
+      // 处理expression
+      expression = wrapFilter(expression, filters[i])
+    }
+  }
+  // 返回expression
+  return expression
+}
+
+// 定义wrapFilter函数，接收表达式和filter
+function wrapFilter (exp: string, filter: string): string {
+  // 获取(字符
+  const i = filter.indexOf('(')
+  // 如果不存在(字符
+  if (i < 0) {
+    // 返回格式化的过滤器字符串
+    // _f: resolveFilter
+    return `_f("${filter}")(${exp})`
+  } else {
+    // 存在(字符则获取filter的名称和参数
+    const name = filter.slice(0, i)
+    const args = filter.slice(i + 1)
+    // 返回格式化的过滤器字符串
+    return `_f("${name}")(${exp}${args !== ')' ? ',' + args : args}`
+  }
+}
+```
+
+解析过滤器的过程涉及稍显繁琐的字符串匹配检查，要保证表达式配对符号的一致，检测表达式内容符合过滤器的规范，但其最终目的也是把处理好的过滤器转换成格式化的字符串，留待以后使用。
 
 ## codegen
 
