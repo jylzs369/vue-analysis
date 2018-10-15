@@ -10,87 +10,50 @@
     username {
       color: red;
     }
+    .answerSelected {
+      border: 1px solid blue;
+    }
   </style>
 </head>
 <body>
-  <!-- <div id="component1" :style="{fontSize: '24px'}">{{ msg }} 111</div> -->
   <div id="component2">
-    <p>{{ name }}</p>
-    {{ msg }}
-    <!-- <msg></msg> -->
   </div>
-  <!-- <username>萨达萨达</username> -->
   <script src="vue.js"></script>
-  <!-- <script type="text/x-template" id="component2">
-    {{ msg }}
-  </script> -->
   <script>
-    /* var component1 = new Vue({
-      el: '#component1',
-      data () {
-        return {
-          msg: 'hello',
-          name: ''
-        }
-      },
-      watch: {
-        'msg' (value) {
-          // console.log('msg更新了')
-        }
-      }
-    }) */
-    var msg = Vue.component('msg', {
-      render (h) {
-        // console.log(h)
-        return h('p', '222')  
-      }
-    })
     var component2 = new Vue({
       el: '#component2',
-      // template: '<p>{{ msg }}</p>',
       components: {
-        // msg
       },
       data () {
         return {
-          msg: 'world',
-          name: ''
+          percentage: 0
         }
-      },
-      watch: {
-        'msg' (value) {
-          this.name = value
-        }
-      },
-      beforeCreate() {
-        // console.log('before create')
       },
       created () {
-        // console.log('created')
       },
-      beforeMount() {
-        // console.log('before mount')
+      watch: {
+        percentage: function (curVal, oldVal) {
+          this.changePercent()
+        }
       },
-      mounted() {
-        console.log('mounted')
+      methods: {
+        changePercent: function () {
+          console.log(this)
+        }
       },
-      beforeUpdate() {
-        // console.log('beforeUpdate')
-      },
-      updated() {
-        console.log('updated')
-      },
-      beforeDestroy() {
-        console.log('before destroy')
-      },
-      destroyed() {
-        console.log('destroy')
-      },
-      activated() {
-        console.log('activated')
-      },
-      deactivated() {
-        console.log('deactivated')
+      render (h, params) {
+        return h('div', [
+          h('button', {
+            attr: {
+              disabled: this.percentage === 10
+            },
+            on: {
+              click: (e) => {
+                this.percentage = 10
+              }
+            }
+          })
+        ])
       }
     })
   </script>
