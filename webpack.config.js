@@ -4,7 +4,7 @@ const HtmlWebpackPlugin = require('html-webpack-plugin')
 const VueLoaderPlugin = require('vue-loader/lib/plugin')
 
 function resolve (dir) {
-  return path.join(__dirname, dir)
+  return path.resolve(__dirname, dir)
 }
 
 module.exports = {
@@ -39,7 +39,10 @@ module.exports = {
       {
         test: /\.css$/,
         use: ['vue-style-loader', 'css-loader'],
-        include: resolve('src')
+        include: [
+          resolve('src'),
+          resolve('node_modules/.3.2.0@iview/dist/styles')
+        ]
       },
       {
         test: /\.vue$/,
@@ -53,12 +56,27 @@ module.exports = {
       },
       {
         test: /\.(png|jpe?g|gif|svg)(\?.*)?$/,
-        loader: 'url-loader',
-        include: resolve('src'),
+        loader: 'file-loader',
         options: {
           limit: 10000,
           name: 'static/images/[name].[hash:7].[ext]'
-        }
+        },
+        include: [
+          resolve('src'),
+          resolve('node_modules/.3.2.0@iview/dist/styles')
+        ]
+      },
+      {
+        test: /\.(ttf|woff)(\?.*)?$/,
+        loader: 'file-loader',
+        options: {
+          limit: 10000,
+          name: 'static/fonts/[name].[hash:7].[ext]'
+        },
+        include: [
+          resolve('src'),
+          resolve('node_modules/.3.2.0@iview/dist/styles')
+        ]
       }
     ]
   },
